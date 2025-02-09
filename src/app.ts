@@ -1,16 +1,14 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import userRoutes from './routes/userRoutes';
-import messageRoutes from './routes/messageRoutes';
-import teamRoutes from './routes/teamRoutes';
+import express from "express";
+import cors from "cors";
+import roomRoutes from "./routes/room.routes";
+import chatRoutes from "./routes/chat.routes";
 
 const app = express();
 
-app.use(bodyParser.json());
+app.use(cors());
+app.use(express.json());
 
-// Routes
-app.use('/api/users', userRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/teams', teamRoutes);
+app.use("/api/rooms", roomRoutes);
+app.use("/api/chats", chatRoutes);
 
 export default app;

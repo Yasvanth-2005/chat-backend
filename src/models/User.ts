@@ -1,19 +1,34 @@
-import mongoose, { Schema, Document, Types } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-interface IUser extends Document {
+export interface IUser extends Document {
   username: string;
-  email: string;
-  teamId: Types.ObjectId; // References the team the user belongs to
-  isOnline: boolean; // Online status
-  socketId: string | null; // Socket ID for real-time messaging
+  socketId: string;
+  createdAt: Date;
+  lastActive: Date;
 }
 
-const UserSchema = new Schema<IUser>({
-  username: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  teamId: { type: mongoose.Schema.Types.ObjectId, ref: "Team", required: true },
-  isOnline: { type: Boolean, default: false },
-  socketId: { type: String, default: null },
+const UserSchema = new Schema({
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  socketId: {
+    type: String,
+    required: true,
+  },
+  active: {
+    type: Boolean,
+    default: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  lastActive: {
+    type: Date,
+    default: Date.now,
+  },
 });
 
-export const User = mongoose.model<IUser>("User", UserSchema);
+export default mongoose.model<IUser>("User", UserSchema);
