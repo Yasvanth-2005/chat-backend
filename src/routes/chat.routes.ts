@@ -1,13 +1,13 @@
 import { Router } from "express";
 import Chat from "../models/Chat";
 import Message from "../models/Message";
-import User from "../models/User";
+import ChatUser from "../models/User";
 
 const router = Router();
 
 router.get("/users", async (req, res) => {
   try {
-    const users = await User.find({}, "displayName");
+    const users = await ChatUser.find({}, "displayName");
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: "Server error" });
