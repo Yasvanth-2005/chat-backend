@@ -6,7 +6,7 @@ const router = Router();
 
 router.get("/", async (req, res) => {
   try {
-    const rooms = await Room.find().populate("users", "username");
+    const rooms = await Room.find().populate("users", "displayName");
     const roomList = rooms.map((room) => ({
       id: room._id,
       name: room.name,
@@ -23,7 +23,7 @@ router.get("/:roomId/messages", async (req, res) => {
     const messages = await Message.find({
       roomId: req.params.roomId,
       type: "room",
-    }).populate("userId", "username");
+    }).populate("userId", "displayName");
     res.json(messages);
   } catch (error) {
     res.status(500).json({ error: "Server error" });
@@ -34,7 +34,7 @@ router.get("/:roomId/users", async (req, res) => {
   try {
     const room = await Room.findById(req.params.roomId).populate(
       "users",
-      "username"
+      "displayName"
     );
     if (room) {
       res.json(room.users);

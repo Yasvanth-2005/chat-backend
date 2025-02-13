@@ -18,19 +18,17 @@ export const setupSocket = (
     async (socket: Socket<ClientToServerEvents, ServerToClientEvents>) => {
       console.log("User connected:", socket.id);
 
-      socket.on("join", async ({ username }) => {
+      socket.on("join", async (userData: any) => {
         try {
-          let user = await User.findOne({ username });
+          let user: any = await User.findOne({
+            displayName: userData.displayName,
+          });
 
           if (user) {
             user.socketId = socket.id;
             await user.save();
-
-            console.log(
-              `User ${username} reconnected with new socket ID: ${socket.id}`
-            );
           } else {
-            user = await User.create({ username, socketId: socket.id });
+            user = await User.create({ ...userData, socketId: socket.id });
           }
 
           const generalRoom: any = await Room.findOne({ name: "General" });
@@ -45,17 +43,17 @@ export const setupSocket = (
 
             const populatedRoom: any = await Room.findById(
               generalRoom._id
-            ).populate("users", "username socketId");
+            ).populate("users", "displayName socketId");
 
             io.to(generalRoom._id.toString()).emit("userJoined", {
               user: user.toJSON(),
-              room: populatedRoom.toJSON(),
+              room: populatedRoom?.toJSON(),
             });
 
             const messages: any = await Message.find({
               roomId: generalRoom._id,
               type: "room",
-            }).populate("userId", "username");
+            }).populate("userId", "displayName");
 
             socket.emit(
               "messageHistory",
@@ -67,107 +65,130 @@ export const setupSocket = (
         }
       });
 
-      socket.on("startChat", async ({ userId }) => {
-        try {
-          const currentUser = await User.findOne({ socketId: socket.id });
-          const otherUser = await User.findById(userId);
+      socket.on(
+        "startChat",
+        async ({ userId, contact }: { userId: string; contact?: any }) => {
+          try {
+            const currentUser = await User.findOne({ socketId: socket.id });
+            let otherUser = await User.findById(userId);
 
-          if (currentUser && otherUser) {
-            const chat = await Chat.create({
-              participants: [currentUser._id, otherUser._id],
+            if (!currentUser) {
+              console.error("Current user not found for socket:", socket.id);
+              return;
+            }
+
+            if (!otherUser) {
+              otherUser = await User.create({ socketId: "none", ...contact });
+            }
+
+            // Check if a chat between these two users already exists
+            let chat = await Chat.findOne({
+              participants: { $all: [currentUser._id, otherUser._id] },
             });
 
+            console.log(chat);
+            if (!chat) {
+              chat = await Chat.create({
+                participants: [currentUser._id, otherUser._id],
+              });
+            }
+
             const populatedChat: any = await Chat.findById(chat._id).populate<{
-              participants: PopulatedUser[];
-            }>("participants", "username socketId");
+              participants: any;
+            }>("participants", "displayName socketId");
 
             if (populatedChat) {
               [currentUser, otherUser].forEach((user) => {
-                io.to(user.socketId).emit(
-                  "chatStarted",
-                  populatedChat.toJSON()
-                );
+                if (user.socketId !== "none") {
+                  io.to(user.socketId).emit(
+                    "chatStarted",
+                    populatedChat.toJSON()
+                  );
+                }
               });
             }
+          } catch (error) {
+            console.error("Start chat error:", error);
           }
-        } catch (error) {
-          console.error("Start chat error:", error);
         }
-      });
+      );
 
-      socket.on("directMessage", async ({ chatId, content }) => {
-        try {
-          const user: any = await User.findOne({ socketId: socket.id });
-          const chat: any = await Chat.findById(chatId).populate<{
-            participants: PopulatedUser[];
-          }>("participants", "socketId username");
+      socket.on(
+        "directMessage",
+        async ({ chatId, content }: { chatId: string; content: string }) => {
+          try {
+            const user = await User.findOne({ socketId: socket.id });
+            const chat: any = await Chat.findById(chatId).populate<{
+              participants: PopulatedUser[];
+            }>("participants", "socketId displayName");
 
-          if (user && chat) {
-            const message = await Message.create({
-              content,
-              userId: user._id,
-              chatId: new Types.ObjectId(chatId),
-              type: "direct",
-            });
+            if (user && chat) {
+              const message = await Message.create({
+                content,
+                userId: user._id,
+                chatId: new Types.ObjectId(chatId),
+                type: "direct",
+              });
 
-            chat.lastMessage = message._id;
-            await chat.save();
+              chat.lastMessage = message._id;
+              await chat.save();
 
-            const populatedMessage: any = await Message.findById(
-              message._id
-            ).populate<{ userId: PopulatedUser }>("userId", "username");
+              const populatedMessage: any = await Message.findById(
+                message._id
+              ).populate<{ userId: PopulatedUser }>("userId", "displayName");
 
-            if (populatedMessage) {
-              chat.participants.forEach((participant: any) => {
-                io.to(participant.socketId).emit("directMessage", {
-                  chatId,
-                  message: populatedMessage.toJSON(),
+              if (populatedMessage) {
+                chat.participants.forEach((participant: any) => {
+                  io.to(participant.socketId).emit("directMessage", {
+                    chatId,
+                    message: populatedMessage.toJSON(),
+                  });
                 });
+              }
+            }
+          } catch (error) {
+            console.error("Direct message error:", error);
+          }
+        }
+      );
+
+      socket.on(
+        "message",
+        async ({ content, roomId }: { content: string; roomId: string }) => {
+          try {
+            const user = await User.findOne({ socketId: socket.id });
+            if (user) {
+              const message = await Message.create({
+                content,
+                userId: user._id,
+                roomId: new Types.ObjectId(roomId),
+                type: "room",
               });
+
+              const populatedMessage: any = await Message.findById(
+                message._id
+              ).populate<{ userId: PopulatedUser }>("userId", "displayName");
+
+              if (populatedMessage) {
+                io.to(roomId).emit("message", populatedMessage.toJSON());
+              }
             }
+          } catch (error) {
+            console.error("Message error:", error);
           }
-        } catch (error) {
-          console.error("Direct message error:", error);
         }
-      });
+      );
 
-      socket.on("message", async ({ content, roomId }) => {
+      socket.on("createRoom", async ({ name }: { name: string }) => {
         try {
-          const user = await User.findOne({ socketId: socket.id });
-          if (user) {
-            const message = await Message.create({
-              content,
-              userId: user._id,
-              roomId: new Types.ObjectId(roomId),
-              type: "room",
-            });
-
-            const populatedMessage: any = await Message.findById(
-              message._id
-            ).populate<{ userId: PopulatedUser }>("userId", "username");
-
-            if (populatedMessage) {
-              io.to(roomId).emit("message", populatedMessage.toJSON());
-            }
-          }
-        } catch (error) {
-          console.error("Message error:", error);
-        }
-      });
-
-      socket.on("createRoom", async ({ name }) => {
-        try {
-          const room: any = await Room.create({
-            name,
-            users: [],
-          });
+          const room: any = await Room.create({ name, users: [] });
           io.emit("roomCreated", room.toJSON());
         } catch (error) {
           console.error("Create room error:", error);
         }
       });
 
-      socket.on("joinRoom", async ({ roomId }) => {
+      socket.on("joinRoom", async ({ roomId }: { roomId: string }) => {
         try {
           const user: any = await User.findOne({ socketId: socket.id });
           const room: any = await Room.findById(roomId);
@@ -184,7 +205,7 @@ export const setupSocket = (
 
             const populatedRoom: any = await Room.findById(room._id).populate<{
               users: PopulatedUser[];
-            }>("users", "username socketId");
+            }>("users", "displayName socketId");
 
             if (populatedRoom) {
               io.to(roomId).emit("userJoined", {
@@ -195,7 +216,7 @@ export const setupSocket = (
               const messages: any = await Message.find({
                 roomId: new Types.ObjectId(roomId),
                 type: "room",
-              }).populate<{ userId: PopulatedUser }>("userId", "username");
+              }).populate<{ userId: PopulatedUser }>("userId", "displayName");
 
               socket.emit(
                 "messageHistory",
@@ -223,8 +244,8 @@ export const setupSocket = (
               const populatedRoom: any = await Room.findById(
                 room._id
               ).populate<{
-                users: any;
-              }>("users", "username socketId");
+                users: PopulatedUser[];
+              }>("users", "displayName socketId");
 
               if (populatedRoom) {
                 io.to(room._id.toString()).emit("userLeft", {
@@ -234,7 +255,7 @@ export const setupSocket = (
               }
             }
 
-            await User.findByIdAndUpdate(user._id, { active: true });
+            await User.findByIdAndUpdate(user._id, { active: false });
           }
         } catch (error) {
           console.error("Disconnect error:", error);
