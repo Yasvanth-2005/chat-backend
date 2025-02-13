@@ -19,22 +19,36 @@ router.get("/users/:userId/chats", async (req, res) => {
     const chats = await Chat.find({
       participants: req.params.userId,
     })
-      .populate("participants", "displayName photoURL")
+      .populate("participants")
       .populate("lastMessage");
 
+    console.log(chats);
     res.json({ conversations: chats });
   } catch (error) {
     res.status(500).json({ error: "Server error" });
   }
 });
 
-router.get("/:chatId/messages", async (req, res) => {
+router.get("/:chatId/messages", async (req: any, res: any) => {
   try {
+    const chat = await Chat.findById(req.params.chatId).populate(
+      "participants"
+    );
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
     const messages = await Message.find({
       chatId: req.params.chatId,
       type: "direct",
-    }).populate("userId", "displayName");
-    res.json(messages);
+    }).populate("userId");
+
+    console.log(messages);
+    res.json({
+      messages,
+      participants: chat.participants,
+    });
   } catch (error) {
     res.status(500).json({ error: "Server error" });
   }

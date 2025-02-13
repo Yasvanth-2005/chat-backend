@@ -20,7 +20,7 @@ export interface IUser extends Document {
   id: Schema.Types.ObjectId;
 }
 
-const UserSchema = new Schema<IUser>({
+const ChatUserSchema = new Schema<IUser>({
   _id: {
     type: Schema.Types.ObjectId,
     required: true,
@@ -92,4 +92,4 @@ const UserSchema = new Schema<IUser>({
   },
 });
 
-export default mongoose.model<IUser>("User", UserSchema);
+export default mongoose.model<IUser>("chatusers", ChatUserSchema);

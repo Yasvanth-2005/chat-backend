@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { Types } from "mongoose";
-import User, { IUser } from "../models/User";
+import ChatUser, { IUser } from "../models/User";
 import Room, { IRoom } from "../models/Room";
 import Message, { IMessage } from "../models/Message";
 import Chat, { IChat } from "../models/Chat";
@@ -20,7 +20,7 @@ export const setupSocket = (
 
       socket.on("join", async (userData: any) => {
         try {
-          let user: any = await User.findOne({
+          let user: any = await ChatUser.findOne({
             displayName: userData.displayName,
           });
 
@@ -28,7 +28,7 @@ export const setupSocket = (
             user.socketId = socket.id;
             await user.save();
           } else {
-            user = await User.create({ ...userData, socketId: socket.id });
+            user = await ChatUser.create({ ...userData, socketId: socket.id });
           }
 
           const generalRoom: any = await Room.findOne({ name: "General" });
@@ -69,8 +69,10 @@ export const setupSocket = (
         "startChat",
         async ({ userId, contact }: { userId: string; contact?: any }) => {
           try {
-            const currentUser = await User.findOne({ socketId: socket.id });
-            let otherUser = await User.findById(userId);
+            console.log("Hmmmm......");
+            console.log("userId: " + userId, contact);
+            const currentUser = await ChatUser.findOne({ socketId: socket.id });
+            let otherUser = await ChatUser.findById(userId);
 
             if (!currentUser) {
               console.error("Current user not found for socket:", socket.id);
@@ -78,7 +80,10 @@ export const setupSocket = (
             }
 
             if (!otherUser) {
-              otherUser = await User.create({ socketId: "none", ...contact });
+              otherUser = await ChatUser.create({
+                socketId: "none",
+                ...contact,
+              });
             }
 
             // Check if a chat between these two users already exists
@@ -115,19 +120,20 @@ export const setupSocket = (
 
       socket.on(
         "directMessage",
-        async ({ chatId, content }: { chatId: string; content: string }) => {
+        async ({ chatId, content }: { chatId: string; content: any }) => {
           try {
-            const user = await User.findOne({ socketId: socket.id });
+            const user = await ChatUser.findOne({ socketId: socket.id });
             const chat: any = await Chat.findById(chatId).populate<{
               participants: PopulatedUser[];
             }>("participants", "socketId displayName");
 
             if (user && chat) {
               const message = await Message.create({
-                content,
-                userId: user._id,
+                body: content.body,
+                senderId: user._id,
                 chatId: new Types.ObjectId(chatId),
-                type: "direct",
+                type: content.type,
+                attachments: content.attachments,
               });
 
               chat.lastMessage = message._id;
@@ -135,7 +141,12 @@ export const setupSocket = (
 
               const populatedMessage: any = await Message.findById(
                 message._id
-              ).populate<{ userId: PopulatedUser }>("userId", "displayName");
+              ).populate<{ senderId: PopulatedUser }>(
+                "senderId",
+                "displayName"
+              );
+
+              console.log(populatedMessage);
 
               if (populatedMessage) {
                 chat.participants.forEach((participant: any) => {
@@ -156,7 +167,7 @@ export const setupSocket = (
         "message",
         async ({ content, roomId }: { content: string; roomId: string }) => {
           try {
-            const user = await User.findOne({ socketId: socket.id });
+            const user = await ChatUser.findOne({ socketId: socket.id });
             if (user) {
               const message = await Message.create({
                 content,
@@ -190,7 +201,7 @@ export const setupSocket = (
 
       socket.on("joinRoom", async ({ roomId }: { roomId: string }) => {
         try {
-          const user: any = await User.findOne({ socketId: socket.id });
+          const user: any = await ChatUser.findOne({ socketId: socket.id });
           const room: any = await Room.findById(roomId);
 
           if (user && room) {
@@ -231,7 +242,7 @@ export const setupSocket = (
 
       socket.on("disconnect", async () => {
         try {
-          const user: any = await User.findOne({ socketId: socket.id });
+          const user: any = await ChatUser.findOne({ socketId: socket.id });
           if (user) {
             const rooms: any = await Room.find({ users: user._id });
 
@@ -255,7 +266,7 @@ export const setupSocket = (
               }
             }
 
-            await User.findByIdAndUpdate(user._id, { active: false });
+            await ChatUser.findByIdAndUpdate(user._id, { active: false });
           }
         } catch (error) {
           console.error("Disconnect error:", error);
