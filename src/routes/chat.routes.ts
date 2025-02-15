@@ -7,8 +7,9 @@ const router = Router();
 
 router.get("/users", async (req, res) => {
   try {
-    const users = await ChatUser.find({}, "displayName");
-    res.json(users);
+    const users = await ChatUser.find();
+    console.log(users);
+    res.json({ contacts: users });
   } catch (error) {
     res.status(500).json({ error: "Server error" });
   }

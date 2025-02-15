@@ -69,8 +69,6 @@ export const setupSocket = (
         "startChat",
         async ({ userId, contact }: { userId: string; contact?: any }) => {
           try {
-            console.log("Hmmmm......");
-            console.log("userId: " + userId, contact);
             const currentUser = await ChatUser.findOne({ socketId: socket.id });
             let otherUser = await ChatUser.findById(userId);
 
@@ -85,13 +83,14 @@ export const setupSocket = (
                 ...contact,
               });
             }
+            console.log(currentUser);
+            console.log(otherUser);
 
             // Check if a chat between these two users already exists
             let chat = await Chat.findOne({
               participants: { $all: [currentUser._id, otherUser._id] },
             });
 
-            console.log(chat);
             if (!chat) {
               chat = await Chat.create({
                 participants: [currentUser._id, otherUser._id],
@@ -102,16 +101,7 @@ export const setupSocket = (
               participants: any;
             }>("participants", "displayName socketId");
 
-            if (populatedChat) {
-              [currentUser, otherUser].forEach((user) => {
-                if (user.socketId !== "none") {
-                  io.to(user.socketId).emit(
-                    "chatStarted",
-                    populatedChat.toJSON()
-                  );
-                }
-              });
-            }
+            return populatedChat;
           } catch (error) {
             console.error("Start chat error:", error);
           }

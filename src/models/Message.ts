@@ -32,7 +32,7 @@ const ChatAttachmentSchema = new Schema<IAttachment>({
 
 const ChatMessageSchema = new Schema<IMessage>({
   body: { type: String, required: true },
-  senderId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  senderId: { type: Schema.Types.ObjectId, ref: "chatusers", required: true },
   chatId: { type: Schema.Types.ObjectId, ref: "Chat" },
   roomId: { type: Schema.Types.ObjectId, ref: "Room" },
   contentType: { type: String, default: "text" },

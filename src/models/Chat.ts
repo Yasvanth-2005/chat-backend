@@ -15,7 +15,7 @@ const ChatSchema = new Schema({
   ],
   lastMessage: {
     type: Schema.Types.ObjectId,
-    ref: "Message",
+    ref: "messages",
   },
   createdAt: {
     type: Date,
