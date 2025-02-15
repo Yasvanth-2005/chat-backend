@@ -25,6 +25,7 @@ router.get("/users/:userId/chats", async (req, res) => {
     console.log(chats);
     res.json({ conversations: chats });
   } catch (error) {
+    console.log(error);
     res.status(500).json({ error: "Server error" });
   }
 });
