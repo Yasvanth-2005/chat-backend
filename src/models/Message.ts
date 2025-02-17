@@ -40,4 +40,4 @@ const ChatMessageSchema = new Schema<IMessage>({
   attachments: { type: [ChatAttachmentSchema], default: [] },
 });
 
-export default mongoose.model<IMessage>("messages", ChatMessageSchema);
+export default mongoose.model<any>("messages", ChatMessageSchema);

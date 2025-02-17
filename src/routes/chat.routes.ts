@@ -2,6 +2,7 @@ import { Router } from "express";
 import Chat from "../models/Chat";
 import Message from "../models/Message";
 import ChatUser from "../models/User";
+import User from "../models/User";
 
 const router = Router();
 
@@ -17,16 +18,27 @@ router.get("/users", async (req, res) => {
 
 router.get("/users/:userId/chats", async (req, res) => {
   try {
-    const chats = await Chat.find({
-      participants: req.params.userId,
-    })
+    const chats = await Chat.find({ participants: req.params.userId })
       .populate("participants")
-      .populate("lastMessage");
+      .populate({
+        path: "lastMessage",
+      });
 
-    console.log(chats);
+    chats.sort((a: any, b: any) => {
+      const dateA = a.lastMessage?.createdAt
+        ? new Date(a.lastMessage.createdAt).getTime()
+        : 0;
+      const dateB = b.lastMessage?.createdAt
+        ? new Date(b.lastMessage.createdAt).getTime()
+        : 0;
+
+      console.log(dateB - dateA);
+      return dateB - dateA;
+    });
+
     res.json({ conversations: chats });
   } catch (error) {
-    console.log(error);
+    console.error("Error fetching chats:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -43,15 +55,57 @@ router.get("/:chatId/messages", async (req: any, res: any) => {
 
     const messages = await Message.find({
       chatId: req.params.chatId,
-      type: "direct",
-    }).populate("userId");
+    }).populate("senderId");
 
-    console.log(messages);
     res.json({
       messages,
       participants: chat.participants,
     });
   } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/chats", async (req: any, res: any) => {
+  try {
+    const { userId, contact } = req.body;
+
+    if (!userId || !contact?._id) {
+      return res.status(400).json({ error: "Invalid user or contact" });
+    }
+
+    const user = await User.findById(userId);
+    let contactUser = await User.findById(contact._id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    if (!contactUser) {
+      contactUser = await User.create({ ...contact });
+    }
+
+    let chat = await Chat.findOne({
+      participants: { $all: [userId, contactUser._id] },
+    });
+
+    if (!chat) {
+      chat = await Chat.create({
+        participants: [userId, contactUser._id],
+        lastMessage: null,
+      });
+    }
+
+    const populatedChat: any = await Chat.findById(chat._id).populate<{
+      participants: any;
+    }>("participants", "displayName socketId");
+
+    console.log(populatedChat);
+
+    return res.status(200).json({ chat });
+  } catch (error) {
+    console.error("Error creating chat:", error);
     res.status(500).json({ error: "Server error" });
   }
 });

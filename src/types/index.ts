@@ -32,8 +32,9 @@ export interface IChat extends Document {
 export interface ServerToClientEvents {
   userJoined: (data: { user: IUser; room: IRoom }) => void;
   chatStarted: (chat: IChat) => void;
+  messageSent: (message: any) => void;
   directMessage: (data: { chatId: string; message: IMessage }) => void;
-  message: (message: IMessage) => void;
+  message: (message: any) => void;
   roomCreated: (room: IRoom) => void;
   messageHistory: (messages: IMessage[]) => void;
   userLeft: (data: { userId: string; room: IRoom }) => void;

@@ -32,7 +32,6 @@ const ChatUserSchema = new Schema<IUser>({
   },
   socketId: {
     type: String,
-    required: true,
   },
   photoURL: {
     type: String,

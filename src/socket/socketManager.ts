@@ -101,6 +101,7 @@ export const setupSocket = (
               participants: any;
             }>("participants", "displayName socketId");
 
+            console.log(populatedChat);
             return populatedChat;
           } catch (error) {
             console.error("Start chat error:", error);
@@ -140,10 +141,13 @@ export const setupSocket = (
 
               if (populatedMessage) {
                 chat.participants.forEach((participant: any) => {
-                  io.to(participant.socketId).emit("directMessage", {
-                    chatId,
-                    message: populatedMessage.toJSON(),
-                  });
+                  if (participant.socketId !== socket.id) {
+                    console.log(`Sending message to: ${participant.socketId}`);
+                    io.to(participant.socketId).emit("messageSent", {
+                      message: populatedMessage,
+                      chatId: chatId,
+                    });
+                  }
                 });
               }
             }
