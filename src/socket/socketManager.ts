@@ -1,7 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { Types } from "mongoose";
 import ChatUser, { IUser } from "../models/User";
-import Room, { IRoom } from "../models/Room";
 import Message, { IMessage } from "../models/Message";
 import Chat, { IChat } from "../models/Chat";
 import type { ServerToClientEvents, ClientToServerEvents } from "../types";
@@ -29,36 +28,6 @@ export const setupSocket = (
             await user.save();
           } else {
             user = await ChatUser.create({ ...userData, socketId: socket.id });
-          }
-
-          const generalRoom: any = await Room.findOne({ name: "General" });
-
-          if (generalRoom) {
-            socket.join(generalRoom._id.toString());
-
-            if (!generalRoom.users.includes(user._id)) {
-              generalRoom.users.push(user._id);
-              await generalRoom.save();
-            }
-
-            const populatedRoom: any = await Room.findById(
-              generalRoom._id
-            ).populate("users", "displayName socketId");
-
-            io.to(generalRoom._id.toString()).emit("userJoined", {
-              user: user.toJSON(),
-              room: populatedRoom?.toJSON(),
-            });
-
-            const messages: any = await Message.find({
-              roomId: generalRoom._id,
-              type: "room",
-            }).populate("userId", "displayName");
-
-            socket.emit(
-              "messageHistory",
-              messages.map((m: any) => m.toJSON())
-            );
           }
         } catch (error) {
           console.error("Join error:", error);
@@ -184,82 +153,10 @@ export const setupSocket = (
         }
       );
 
-      socket.on("createRoom", async ({ name }: { name: string }) => {
-        try {
-          const room: any = await Room.create({ name, users: [] });
-          io.emit("roomCreated", room.toJSON());
-        } catch (error) {
-          console.error("Create room error:", error);
-        }
-      });
-
-      socket.on("joinRoom", async ({ roomId }: { roomId: string }) => {
-        try {
-          const user: any = await ChatUser.findOne({ socketId: socket.id });
-          const room: any = await Room.findById(roomId);
-
-          if (user && room) {
-            await Room.updateMany(
-              { users: user._id },
-              { $pull: { users: user._id } }
-            );
-
-            socket.join(roomId);
-            room.users.push(user._id);
-            await room.save();
-
-            const populatedRoom: any = await Room.findById(room._id).populate<{
-              users: PopulatedUser[];
-            }>("users", "displayName socketId");
-
-            if (populatedRoom) {
-              io.to(roomId).emit("userJoined", {
-                user: user.toJSON(),
-                room: populatedRoom.toJSON(),
-              });
-
-              const messages: any = await Message.find({
-                roomId: new Types.ObjectId(roomId),
-                type: "room",
-              }).populate<{ userId: PopulatedUser }>("userId", "displayName");
-
-              socket.emit(
-                "messageHistory",
-                messages.map((m: any) => m.toJSON())
-              );
-            }
-          }
-        } catch (error) {
-          console.error("Join room error:", error);
-        }
-      });
-
       socket.on("disconnect", async () => {
         try {
           const user: any = await ChatUser.findOne({ socketId: socket.id });
           if (user) {
-            const rooms: any = await Room.find({ users: user._id });
-
-            for (const room of rooms) {
-              room.users = room.users.filter(
-                (u: any) => u.toString() !== user._id.toString()
-              );
-              await room.save();
-
-              const populatedRoom: any = await Room.findById(
-                room._id
-              ).populate<{
-                users: PopulatedUser[];
-              }>("users", "displayName socketId");
-
-              if (populatedRoom) {
-                io.to(room._id.toString()).emit("userLeft", {
-                  userId: user._id.toString(),
-                  room: populatedRoom.toJSON(),
-                });
-              }
-            }
-
             await ChatUser.findByIdAndUpdate(user._id, { active: false });
           }
         } catch (error) {

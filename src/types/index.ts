@@ -8,12 +8,6 @@ export interface IUser extends Document {
   lastActive: Date;
 }
 
-export interface IRoom extends Document {
-  name: string;
-  users: Types.ObjectId[];
-  createdAt: Date;
-}
-
 export interface IMessage extends Document {
   content: string;
   userId: Types.ObjectId;
@@ -30,14 +24,12 @@ export interface IChat extends Document {
 }
 
 export interface ServerToClientEvents {
-  userJoined: (data: { user: IUser; room: IRoom }) => void;
+  userJoined: (data: { user: IUser }) => void;
   chatStarted: (chat: IChat) => void;
   messageSent: (message: any) => void;
   directMessage: (data: { chatId: string; message: IMessage }) => void;
   message: (message: any) => void;
-  roomCreated: (room: IRoom) => void;
   messageHistory: (messages: IMessage[]) => void;
-  userLeft: (data: { userId: string; room: IRoom }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -45,6 +37,4 @@ export interface ClientToServerEvents {
   startChat: (data: { userId: string }) => void;
   directMessage: (data: { chatId: string; content: string }) => void;
   message: (data: { content: string; roomId: string }) => void;
-  createRoom: (data: { name: string }) => void;
-  joinRoom: (data: { roomId: string }) => void;
 }

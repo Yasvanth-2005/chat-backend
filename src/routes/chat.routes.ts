@@ -87,7 +87,7 @@ router.post("/chats", async (req: any, res: any) => {
     }
 
     let chat = await Chat.findOne({
-      participants: { $all: [userId, contactUser._id] },
+      participants: { $all: [userId, contactUser._id], $size: 2 },
     });
 
     if (!chat) {
