@@ -1,13 +1,13 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IAttachment {
-  name: string;
-  size: number;
-  type: string;
-  path: string;
-  preview: string;
-  createdAt: Date;
-  modifiedAt: Date;
+  name?: string;
+  size?: number;
+  type?: string;
+  path?: string;
+  preview?: string;
+  createdAt?: Date;
+  modifiedAt?: Date;
 }
 
 export interface IMessage extends Document {
@@ -21,11 +21,11 @@ export interface IMessage extends Document {
 }
 
 const ChatAttachmentSchema = new Schema<IAttachment>({
-  name: { type: String, required: true },
-  size: { type: Number, required: true },
-  type: { type: String, required: true },
-  path: { type: String, required: true },
-  preview: { type: String, required: true },
+  name: { type: String },
+  size: { type: Number },
+  type: { type: String },
+  path: { type: String },
+  preview: { type: String },
   createdAt: { type: Date, default: Date.now },
   modifiedAt: { type: Date, default: Date.now },
 });
