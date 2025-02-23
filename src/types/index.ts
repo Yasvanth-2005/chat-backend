@@ -29,6 +29,7 @@ export interface ServerToClientEvents {
   messageSent: (message: any) => void;
   directMessage: (data: { chatId: string; message: IMessage }) => void;
   message: (message: any) => void;
+  deleteMessage: (messageId: any, chatId: any) => void;
   messageHistory: (messages: IMessage[]) => void;
 }
 
@@ -37,4 +38,5 @@ export interface ClientToServerEvents {
   startChat: (data: { userId: string }) => void;
   directMessage: (data: { chatId: string; content: string }) => void;
   message: (data: { content: string; roomId: string }) => void;
+  deleteMessage: (messageId: any, chatId: any) => void;
 }

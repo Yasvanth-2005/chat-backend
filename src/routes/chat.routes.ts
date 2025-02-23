@@ -174,4 +174,26 @@ router.post("/chats/multiple", async (req: any, res: any) => {
   }
 });
 
+router.delete("/chats/:chatId", async (req: any, res: any) => {
+  try {
+    const { chatId } = req.params;
+
+    const chat = await Chat.findById(chatId);
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    await Message.deleteMany({ chatId });
+
+    await Chat.findByIdAndDelete(chatId);
+
+    return res
+      .status(200)
+      .json({ message: "Chat and related messages deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting chat:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 export default router;

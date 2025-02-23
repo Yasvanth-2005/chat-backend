@@ -82,6 +82,7 @@ export const setupSocket = (
         "directMessage",
         async ({ chatId, content }: { chatId: string; content: any }) => {
           try {
+            console.log(content);
             const user = await ChatUser.findOne({ socketId: socket.id });
             const chat: any = await Chat.findById(chatId).populate<{
               participants: PopulatedUser[];
