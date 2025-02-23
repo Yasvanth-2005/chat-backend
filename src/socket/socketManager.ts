@@ -154,6 +154,88 @@ export const setupSocket = (
         }
       );
 
+      socket.on(
+        "deleteMessage",
+        async ({
+          messageId,
+          chatId,
+        }: {
+          messageId: string;
+          chatId: string;
+        }) => {
+          try {
+            // Find the user who is trying to delete the message
+            const user: any = await ChatUser.findOne({ socketId: socket.id });
+
+            if (!user) {
+              console.error("User not found");
+              return;
+            }
+
+            // Find the message and verify ownership
+            const message = await Message.findById(messageId);
+
+            if (!message) {
+              console.error("Message not found");
+              return;
+            }
+
+            // Verify the message belongs to the chat
+            if (message.chatId.toString() !== chatId) {
+              console.error("Message does not belong to this chat");
+              return;
+            }
+
+            // Verify the user is either the sender or has permission
+            if (message.senderId.toString() !== user._id.toString()) {
+              console.error("User not authorized to delete this message");
+              return;
+            }
+
+            // Delete the message
+            await Message.findByIdAndDelete(messageId);
+
+            // Get the chat to notify other participants
+            const chat = await Chat.findById(chatId).populate<{
+              participants: PopulatedUser[];
+            }>("participants", "socketId");
+
+            if (chat) {
+              // Notify all participants in the chat about the deleted message
+              chat.participants.forEach((participant: PopulatedUser) => {
+                io.to(participant.socketId).emit(
+                  "messageDeleted",
+                  messageId,
+                  chatId
+                );
+              });
+            }
+
+            // If this was the last message, update the chat's lastMessage
+            if (chat?.lastMessage?.toString() === messageId) {
+              // Find the new last message
+              const newLastMessage = await Message.findOne({ chatId: chatId })
+                .sort({ createdAt: -1 })
+                .limit(1);
+
+              chat.lastMessage = newLastMessage?._id || null;
+              await chat.save();
+
+              // Notify participants about the updated last message
+              chat.participants.forEach((participant: PopulatedUser) => {
+                io.to(participant.socketId).emit(
+                  "chatUpdated",
+                  chatId,
+                  newLastMessage
+                );
+              });
+            }
+          } catch (error) {
+            console.error("Delete message error:", error);
+          }
+        }
+      );
+
       socket.on("disconnect", async () => {
         try {
           const user: any = await ChatUser.findOne({ socketId: socket.id });
