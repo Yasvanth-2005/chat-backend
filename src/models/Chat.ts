@@ -7,6 +7,9 @@ export interface IChat extends Document {
 }
 
 const ChatSchema = new Schema({
+  name: {
+    type: String,
+  },
   participants: [
     {
       type: Schema.Types.ObjectId,

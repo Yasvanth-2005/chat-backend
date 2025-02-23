@@ -112,7 +112,7 @@ router.post("/chats", async (req: any, res: any) => {
 
 router.post("/chats/multiple", async (req: any, res: any) => {
   try {
-    const { userId, recipients, message } = req.body;
+    const { name, userId, recipients, message } = req.body;
     console.log(message);
 
     if (!userId || !Array.isArray(recipients) || recipients.length === 0) {
@@ -142,6 +142,7 @@ router.post("/chats/multiple", async (req: any, res: any) => {
 
     if (!chat) {
       chat = await Chat.create({
+        name,
         participants,
         lastMessage: null,
         isGroup: true,
