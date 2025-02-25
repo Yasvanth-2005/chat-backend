@@ -82,7 +82,6 @@ export const setupSocket = (
         "directMessage",
         async ({ chatId, content }: { chatId: string; content: any }) => {
           try {
-            console.log(content);
             const user = await ChatUser.findOne({ socketId: socket.id });
             const chat: any = await Chat.findById(chatId).populate<{
               participants: PopulatedUser[];
@@ -107,9 +106,9 @@ export const setupSocket = (
                 "displayName"
               );
 
-              console.log(populatedMessage);
-
+              console.log(chatId);
               if (populatedMessage) {
+                console.log(chat.participants);
                 chat.participants.forEach((participant: any) => {
                   if (participant.socketId !== socket.id) {
                     console.log(`Sending message to: ${participant.socketId}`);

@@ -112,7 +112,7 @@ router.post("/chats", async (req: any, res: any) => {
 
 router.post("/chats/multiple", async (req: any, res: any) => {
   try {
-    const { name, userId, recipients, message } = req.body;
+    const { userId, recipients, message } = req.body;
     console.log(message);
 
     if (!userId || !Array.isArray(recipients) || recipients.length === 0) {
@@ -140,6 +140,75 @@ router.post("/chats/multiple", async (req: any, res: any) => {
       participants: { $all: participants, $size: participants.length },
     });
 
+    if (!chat) {
+      chat = await Chat.create({
+        participants,
+        lastMessage: null,
+        isGroup: true,
+      });
+    }
+
+    if (message) {
+      const newMessage = await Message.create({
+        chatId: chat._id,
+        senderId: userId,
+        body: message.body,
+        type: message.type,
+        attachments: message.attachments,
+      });
+
+      console.log(`newMessage : ${newMessage}`);
+      await Chat.findByIdAndUpdate(chat._id, { lastMessage: newMessage._id });
+    }
+
+    const populatedChat: any = await Chat.findById(chat._id).populate<{
+      participants: any;
+    }>("participants", "displayName socketId");
+
+    console.log(populatedChat);
+
+    return res.status(200).json({ chat });
+  } catch (error) {
+    console.error("Error creating group chat:", error);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/chats/teams", async (req: any, res: any) => {
+  try {
+    const { name, userId, recipients, message } = req.body;
+    console.log(message);
+
+    if (!userId || !Array.isArray(recipients) || recipients.length === 0) {
+      return res.status(400).json({ error: "Invalid user or recipients" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const recipientIds = await Promise.all(
+      recipients.map(async (recipient: any) => {
+        let contactUser = await User.findById(recipient._id);
+        if (!contactUser) {
+          contactUser = await User.create({ ...recipient });
+        }
+        return contactUser._id;
+      })
+    );
+
+    const participants = [userId, ...recipientIds];
+
+    let chat = await Chat.findOneAndUpdate(
+      {
+        participants: { $all: participants, $size: participants.length },
+      },
+      { name },
+      { new: true }
+    );
+
+    console.log(chat);
     if (!chat) {
       chat = await Chat.create({
         name,
