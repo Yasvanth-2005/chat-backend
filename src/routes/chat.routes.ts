@@ -236,8 +236,7 @@ router.post("/chats/teams", async (req: any, res: any) => {
     }>("participants", "displayName socketId");
 
     console.log(populatedChat);
-
-    return res.status(200).json({ chat });
+    return res.status(200).json({ chat: populatedChat });
   } catch (error) {
     console.error("Error creating group chat:", error);
     res.status(500).json({ error: "Server error" });

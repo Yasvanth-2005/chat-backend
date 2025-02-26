@@ -106,9 +106,7 @@ export const setupSocket = (
                 "displayName"
               );
 
-              console.log(chatId);
               if (populatedMessage) {
-                console.log(chat.participants);
                 chat.participants.forEach((participant: any) => {
                   if (participant.socketId !== socket.id) {
                     console.log(`Sending message to: ${participant.socketId}`);
