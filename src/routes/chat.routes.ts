@@ -49,6 +49,7 @@ router.get("/:chatId/messages", async (req: any, res: any) => {
       "participants"
     );
 
+    console.log(chat);
     if (!chat) {
       return res.status(404).json({ error: "Chat not found" });
     }
@@ -58,6 +59,7 @@ router.get("/:chatId/messages", async (req: any, res: any) => {
     }).populate("senderId");
 
     res.json({
+      name: chat.name ? chat.name : "",
       messages,
       participants: chat.participants,
     });
@@ -208,7 +210,6 @@ router.post("/chats/teams", async (req: any, res: any) => {
       { new: true }
     );
 
-    console.log(chat);
     if (!chat) {
       chat = await Chat.create({
         name,
