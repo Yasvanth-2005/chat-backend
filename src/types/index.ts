@@ -32,7 +32,7 @@ export interface ServerToClientEvents {
   directMessage: (data: { chatId: string; message: IMessage }) => void;
   message: (message: any) => void;
   deleteMessage: (messageId: any, chatId: any) => void;
-  messageHistory: (messages: IMessage[]) => void;
+  messageHistory: (messages: any) => void;
 }
 
 export interface ClientToServerEvents {

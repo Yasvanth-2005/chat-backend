@@ -110,13 +110,25 @@ export const setupSocket = (
 
               console.log(populatedMessage);
               if (populatedMessage) {
+                // Get message history for this chat
+                const messageHistory = await Message.find({ chatId: chatId })
+                  .populate("senderId", "displayName")
+                  .sort({ createdAt: 1 });
+
                 chat.participants.forEach((participant: any) => {
                   if (participant.socketId !== socket.id) {
                     console.log(`Sending message to: ${participant.socketId}`);
+                    // Send the new message
                     io.to(participant.socketId).emit("messageSent", {
                       message: populatedMessage,
                       chatId: chatId,
                     });
+
+                    // Also send the complete message history
+                    // io.to(participant.socketId).emit("messageHistory", {
+                    //   messages: messageHistory,
+                    //   chatId: chatId,
+                    // });
                   }
                 });
               }
