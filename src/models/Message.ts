@@ -4,7 +4,7 @@ export interface IAttachment {
   name?: string;
   size?: number;
   type?: string;
-  path?: string;
+  url?: string;
   preview?: string;
   createdAt?: Date;
   modifiedAt?: Date;
@@ -24,7 +24,7 @@ const ChatAttachmentSchema = new Schema<IAttachment>({
   name: { type: String },
   size: { type: Number },
   type: { type: String },
-  path: { type: String },
+  url: { type: String },
   preview: { type: String },
   createdAt: { type: Date, default: Date.now },
   modifiedAt: { type: Date, default: Date.now },

@@ -25,6 +25,9 @@ export const setupSocket = (
 
           if (user) {
             user.socketId = socket.id;
+            user.displayName = userData.displayName;
+            user.photoURL = userData.photoURL;
+            user.phoneNumber = userData.phoneNumber;
             await user.save();
           } else {
             user = await ChatUser.create({ ...userData, socketId: socket.id });
