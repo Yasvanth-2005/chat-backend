@@ -9,7 +9,6 @@ const router = Router();
 router.get("/users", async (req, res) => {
   try {
     const users = await ChatUser.find();
-    console.log(users);
     res.json({ contacts: users });
   } catch (error) {
     res.status(500).json({ error: "Server error" });
@@ -49,7 +48,6 @@ router.get("/:chatId/messages", async (req: any, res: any) => {
       "participants"
     );
 
-    console.log(chat);
     if (!chat) {
       return res.status(404).json({ error: "Chat not found" });
     }
@@ -102,8 +100,6 @@ router.post("/chats", async (req: any, res: any) => {
     const populatedChat: any = await Chat.findById(chat._id).populate<{
       participants: any;
     }>("participants", "displayName socketId active status");
-
-    console.log(populatedChat);
 
     return res.status(200).json({ chat });
   } catch (error) {
@@ -266,7 +262,6 @@ router.post("/chats/teams", async (req: any, res: any) => {
       participants: any;
     }>("participants", "displayName socketId active status");
 
-    console.log(populatedChat);
     return res.status(200).json({ chat: populatedChat });
   } catch (error) {
     console.error("Error creating group chat:", error);

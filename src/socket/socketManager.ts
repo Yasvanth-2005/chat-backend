@@ -63,8 +63,6 @@ export const setupSocket = (
                 ...contact,
               });
             }
-            console.log(currentUser);
-            console.log(otherUser);
 
             // Check if a chat between these two users already exists
             let chat = await Chat.findOne({
@@ -93,8 +91,7 @@ export const setupSocket = (
         "directMessage",
         async ({ chatId, content }: { chatId: string; content: any }) => {
           try {
-            console.log("test message", chatId);
-            console.log(`content: ${content}`);
+            console.log(content);
             const user = await ChatUser.findOne({ socketId: socket.id });
             const chat: any = await Chat.findById(chatId).populate<{
               participants: PopulatedUser[];
