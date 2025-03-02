@@ -33,6 +33,11 @@ export interface ServerToClientEvents {
   message: (message: any) => void;
   deleteMessage: (messageId: any, chatId: any) => void;
   messageHistory: (messages: any) => void;
+  participantStatusUpdate: (data: {
+    participantId: any;
+    status: any;
+    active: boolean;
+  }) => void;
 }
 
 export interface ClientToServerEvents {

@@ -15,6 +15,7 @@ export interface IUser extends Document {
   role?: string;
   isPublic: boolean;
   active: boolean;
+  status: string;
   createdAt: Date;
   lastActive: Date;
   id: Schema.Types.ObjectId;
@@ -79,7 +80,12 @@ const ChatUserSchema = new Schema<IUser>({
   },
   active: {
     type: Boolean,
-    default: true,
+    default: false,
+  },
+  status: {
+    type: String,
+    default: "Online",
+    enum: ["Online", "Away", "Busy"],
   },
   createdAt: {
     type: Date,

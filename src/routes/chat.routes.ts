@@ -101,7 +101,7 @@ router.post("/chats", async (req: any, res: any) => {
 
     const populatedChat: any = await Chat.findById(chat._id).populate<{
       participants: any;
-    }>("participants", "displayName socketId");
+    }>("participants", "displayName socketId active status");
 
     console.log(populatedChat);
 
@@ -129,8 +129,25 @@ router.post("/chats/multiple", async (req: any, res: any) => {
     const recipientIds = await Promise.all(
       recipients.map(async (recipient: any) => {
         let contactUser = await User.findById(recipient._id);
+
+        const newUser = {
+          _id: recipient._id,
+          displayName: `${recipient.firstname} ${recipient.lastname}`,
+          email: recipient.email,
+          about: "About",
+          role: recipient.role,
+          isPublic: true,
+          country: recipient.billingAddress?.country || "India",
+          address: recipient.billingAddress?.address || "90210 Broadway Blvd",
+          state: recipient.billingAddress?.state || "California",
+          city: recipient.billingAddress?.city || "San Francisco",
+          zipCode: recipient.billingAddress?.postalCode || "94116",
+          photoURL: recipient.profile_image,
+          phoneNumber: recipient.phone,
+        };
+
         if (!contactUser) {
-          contactUser = await User.create({ ...recipient });
+          contactUser = await User.create(newUser);
         }
         return contactUser._id;
       })
@@ -165,7 +182,7 @@ router.post("/chats/multiple", async (req: any, res: any) => {
 
     const populatedChat: any = await Chat.findById(chat._id).populate<{
       participants: any;
-    }>("participants", "displayName socketId");
+    }>("participants", "displayName socketId active status");
 
     console.log(populatedChat);
 
@@ -194,7 +211,20 @@ router.post("/chats/teams", async (req: any, res: any) => {
       recipients.map(async (recipient: any) => {
         let contactUser = await User.findById(recipient._id);
         if (!contactUser) {
-          contactUser = await User.create({ ...recipient });
+          const newUser = {
+            _id: recipient._id,
+            displayName: `${recipient.firstname} ${recipient.lastname}`,
+            email: recipient.email,
+            about: "About",
+            role: recipient.role.role,
+            isPublic: true,
+            country: recipient.billingAddress?.country || "India",
+            address: recipient.billingAddress?.address || "90210 Broadway Blvd",
+            state: recipient.billingAddress?.state || "California",
+            city: recipient.billingAddress?.city || "San Francisco",
+            zipCode: recipient.billingAddress?.postalCode || "94116",
+          };
+          contactUser = await User.create(newUser);
         }
         return contactUser._id;
       })
@@ -234,7 +264,7 @@ router.post("/chats/teams", async (req: any, res: any) => {
 
     const populatedChat: any = await Chat.findById(chat._id).populate<{
       participants: any;
-    }>("participants", "displayName socketId");
+    }>("participants", "displayName socketId active status");
 
     console.log(populatedChat);
     return res.status(200).json({ chat: populatedChat });

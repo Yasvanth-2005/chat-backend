@@ -28,7 +28,15 @@ export const setupSocket = (
             user.displayName = userData.displayName;
             user.photoURL = userData.photoURL;
             user.phoneNumber = userData.phoneNumber;
+            user.active = true;
             await user.save();
+
+            console.log("user emmited connected", user._id);
+            io.emit("participantStatusUpdate", {
+              participantId: user._id,
+              status: user.status,
+              active: true,
+            });
           } else {
             user = await ChatUser.create({ ...userData, socketId: socket.id });
           }
@@ -71,7 +79,7 @@ export const setupSocket = (
 
             const populatedChat: any = await Chat.findById(chat._id).populate<{
               participants: any;
-            }>("participants", "displayName socketId");
+            }>("participants", "displayName socketId active status");
 
             console.log(populatedChat);
             return populatedChat;
@@ -90,7 +98,7 @@ export const setupSocket = (
             const user = await ChatUser.findOne({ socketId: socket.id });
             const chat: any = await Chat.findById(chatId).populate<{
               participants: PopulatedUser[];
-            }>("participants", "socketId displayName");
+            }>("participants", "socketId displayName active status");
 
             if (user && chat) {
               const message = await Message.create({
@@ -108,14 +116,14 @@ export const setupSocket = (
                 message._id
               ).populate<{ senderId: PopulatedUser }>(
                 "senderId",
-                "displayName"
+                "displayName active status"
               );
 
               console.log(populatedMessage);
               if (populatedMessage) {
                 // Get message history for this chat
                 const messageHistory = await Message.find({ chatId: chatId })
-                  .populate("senderId", "displayName")
+                  .populate("senderId", "displayName status active")
                   .sort({ createdAt: 1 });
 
                 chat.participants.forEach((participant: any) => {
@@ -157,7 +165,10 @@ export const setupSocket = (
 
               const populatedMessage: any = await Message.findById(
                 message._id
-              ).populate<{ userId: PopulatedUser }>("userId", "displayName");
+              ).populate<{ userId: PopulatedUser }>(
+                "userId",
+                "displayName status active"
+              );
 
               if (populatedMessage) {
                 io.to(roomId).emit("message", populatedMessage.toJSON());
@@ -255,7 +266,16 @@ export const setupSocket = (
         try {
           const user: any = await ChatUser.findOne({ socketId: socket.id });
           if (user) {
-            await ChatUser.findByIdAndUpdate(user._id, { active: false });
+            await ChatUser.findByIdAndUpdate(user._id, {
+              active: false,
+              socketId: "",
+            });
+            console.log("user disconnected", user._id);
+            io.emit("participantStatusUpdate", {
+              participantId: user._id,
+              status: user.status,
+              active: false,
+            });
           }
         } catch (error) {
           console.error("Disconnect error:", error);
