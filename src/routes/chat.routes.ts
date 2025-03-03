@@ -3,6 +3,7 @@ import Chat from "../models/Chat";
 import Message from "../models/Message";
 import ChatUser from "../models/User";
 import User from "../models/User";
+import { io } from "../socket/socketManager";
 
 const router = Router();
 
@@ -111,7 +112,7 @@ router.post("/chats", async (req: any, res: any) => {
 router.post("/chats/multiple", async (req: any, res: any) => {
   try {
     const { userId, recipients, message } = req.body;
-    console.log(message);
+    console.log(message, userId, recipients);
 
     if (!userId || !Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({ error: "Invalid user or recipients" });
@@ -125,7 +126,7 @@ router.post("/chats/multiple", async (req: any, res: any) => {
     const recipientIds = await Promise.all(
       recipients.map(async (recipient: any) => {
         let contactUser = await User.findById(recipient._id);
-
+        console.log(recipient);
         const newUser = {
           _id: recipient._id,
           displayName: `${recipient.firstname} ${recipient.lastname}`,
@@ -163,25 +164,37 @@ router.post("/chats/multiple", async (req: any, res: any) => {
       });
     }
 
-    if (message) {
-      const newMessage = await Message.create({
-        chatId: chat._id,
-        senderId: userId,
-        body: message.body,
-        type: message.type,
-        attachments: message.attachments,
-      });
+    const newMessage = await Message.create({
+      chatId: chat._id,
+      senderId: userId,
+      body: message.body,
+      type: message.type,
+      attachments: message.attachments,
+    });
 
-      console.log(`newMessage : ${newMessage}`);
-      await Chat.findByIdAndUpdate(chat._id, { lastMessage: newMessage._id });
-    }
+    console.log(`newMessage : ${newMessage}`);
+    await Chat.findByIdAndUpdate(chat._id, { lastMessage: newMessage._id });
 
     const populatedChat: any = await Chat.findById(chat._id).populate<{
       participants: any;
     }>("participants", "displayName socketId active status");
 
-    console.log(populatedChat);
+    // Notify all participants about the new chat
+    const onlineParticipants = populatedChat.participants.filter(
+      (p: any) => p.socketId && p.socketId !== ""
+    );
+    console.log(onlineParticipants);
 
+    onlineParticipants.forEach((participant: any) => {
+      if (participant.socketId) {
+        io.to(participant.socketId).emit("messageSent", {
+          message: newMessage,
+          chatId: populatedChat._id,
+        });
+      }
+    });
+
+    console.log(populatedChat);
     return res.status(200).json({ chat });
   } catch (error) {
     console.error("Error creating group chat:", error);
@@ -192,7 +205,7 @@ router.post("/chats/multiple", async (req: any, res: any) => {
 router.post("/chats/teams", async (req: any, res: any) => {
   try {
     const { name, userId, recipients, message } = req.body;
-    console.log(message);
+    console.log(message, name, userId, recipients);
 
     if (!userId || !Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({ error: "Invalid user or recipients" });
@@ -206,6 +219,7 @@ router.post("/chats/teams", async (req: any, res: any) => {
     const recipientIds = await Promise.all(
       recipients.map(async (recipient: any) => {
         let contactUser = await User.findById(recipient._id);
+        console.log(recipient);
         if (!contactUser) {
           const newUser = {
             _id: recipient._id,
@@ -245,22 +259,33 @@ router.post("/chats/teams", async (req: any, res: any) => {
       });
     }
 
-    if (message) {
-      const newMessage = await Message.create({
-        chatId: chat._id,
-        senderId: userId,
-        body: message.body,
-        type: message.type,
-        attachments: message.attachments,
-      });
+    const newMessage = await Message.create({
+      chatId: chat._id,
+      senderId: userId,
+      body: message.body,
+      type: message.type,
+      attachments: message.attachments,
+    });
 
-      console.log(`newMessage : ${newMessage}`);
-      await Chat.findByIdAndUpdate(chat._id, { lastMessage: newMessage._id });
-    }
+    console.log(`newMessage : ${newMessage}`);
+    await Chat.findByIdAndUpdate(chat._id, { lastMessage: newMessage._id });
 
     const populatedChat: any = await Chat.findById(chat._id).populate<{
       participants: any;
     }>("participants", "displayName socketId active status");
+
+    const onlineParticipants = populatedChat.participants.filter(
+      (p: any) => p.socketId && p.socketId !== ""
+    );
+
+    onlineParticipants.forEach((participant: any) => {
+      if (participant.socketId) {
+        io.to(participant.socketId).emit("messageSent", {
+          message: newMessage,
+          chatId: populatedChat._id,
+        });
+      }
+    });
 
     return res.status(200).json({ chat: populatedChat });
   } catch (error) {

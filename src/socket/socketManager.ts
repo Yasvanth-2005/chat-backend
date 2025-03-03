@@ -5,13 +5,17 @@ import Message, { IMessage } from "../models/Message";
 import Chat, { IChat } from "../models/Chat";
 import type { ServerToClientEvents, ClientToServerEvents } from "../types";
 
+let io: Server<ClientToServerEvents, ServerToClientEvents>;
+
 interface PopulatedUser extends Omit<IUser, "socketId"> {
   socketId: string;
 }
 
 export const setupSocket = (
-  io: Server<ClientToServerEvents, ServerToClientEvents>
+  socketIo: Server<ClientToServerEvents, ServerToClientEvents>
 ) => {
+  io = socketIo;
+
   io.on(
     "connection",
     async (socket: Socket<ClientToServerEvents, ServerToClientEvents>) => {
@@ -281,3 +285,5 @@ export const setupSocket = (
     }
   );
 };
+
+export { io };
