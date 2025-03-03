@@ -282,8 +282,32 @@ export const setupSocket = (
           console.error("Disconnect error:", error);
         }
       });
+
+      socket.on(
+        "updateStatus",
+        async ({ status, userId }: { status: string; userId: string }) => {
+          try {
+            const user = await ChatUser.findByIdAndUpdate(
+              userId,
+              { status },
+              { new: true }
+            );
+
+            if (user) {
+              console.log("user status updated", user._id, status);
+              console.log(user);
+              io.emit("participantStatusUpdate", {
+                participantId: user._id,
+                status: status,
+                active: user.active,
+              });
+            }
+          } catch (error) {
+            console.error("Update status error:", error);
+          }
+        }
+      );
     }
   );
 };
-
 export { io };

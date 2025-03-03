@@ -46,4 +46,5 @@ export interface ClientToServerEvents {
   directMessage: (data: { chatId: string; content: string }) => void;
   message: (data: { content: string; roomId: string }) => void;
   deleteMessage: (messageId: any, chatId: any) => void;
+  updateStatus: (data: { status: string; userId: string }) => void;
 }
