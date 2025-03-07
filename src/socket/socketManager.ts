@@ -92,6 +92,37 @@ export const setupSocket = (
       );
 
       socket.on(
+        "getMessageHistory",
+        async ({ chatId, page = 1 }: { chatId: string; page: number }) => {
+          try {
+            const limit = 10;
+            const skip = (page - 1) * limit;
+
+            // Get total count of messages
+            const totalMessages = await Message.countDocuments({ chatId });
+
+            // Get paginated messages from newest to oldest
+            const messages = await Message.find({ chatId })
+              .populate("senderId", "displayName status active")
+              .sort({ createdAt: -1 }) // Sort by newest first
+              .skip(skip)
+              .limit(limit)
+              .lean(); // Use lean() for better performance
+
+            // Send messages and pagination info
+            socket.emit("messageHistory", {
+              messages: messages.reverse(), // Reverse to show oldest first in the current page
+              hasMore: totalMessages > skip + limit,
+              total: totalMessages,
+              currentPage: page,
+            });
+          } catch (error) {
+            console.error("Get message history error:", error);
+          }
+        }
+      );
+
+      socket.on(
         "directMessage",
         async ({ chatId, content }: { chatId: string; content: any }) => {
           try {
@@ -122,11 +153,6 @@ export const setupSocket = (
 
               console.log(populatedMessage);
               if (populatedMessage) {
-                // Get message history for this chat
-                const messageHistory = await Message.find({ chatId: chatId })
-                  .populate("senderId", "displayName status active")
-                  .sort({ createdAt: 1 });
-
                 chat.participants.forEach((participant: any) => {
                   if (participant.socketId !== socket.id) {
                     console.log(`Sending message to: ${participant.socketId}`);
@@ -135,12 +161,6 @@ export const setupSocket = (
                       message: populatedMessage,
                       chatId: chatId,
                     });
-
-                    // Also send the complete message history
-                    // io.to(participant.socketId).emit("messageHistory", {
-                    //   messages: messageHistory,
-                    //   chatId: chatId,
-                    // });
                   }
                 });
               }

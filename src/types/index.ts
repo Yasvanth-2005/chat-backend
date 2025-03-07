@@ -32,7 +32,12 @@ export interface ServerToClientEvents {
   directMessage: (data: { chatId: string; message: IMessage }) => void;
   message: (message: any) => void;
   deleteMessage: (messageId: any, chatId: any) => void;
-  messageHistory: (messages: any) => void;
+  messageHistory: (data: {
+    messages: any[];
+    hasMore: boolean;
+    total: number;
+    currentPage: number;
+  }) => void;
   participantStatusUpdate: (data: {
     participantId: any;
     status: any;
@@ -47,4 +52,5 @@ export interface ClientToServerEvents {
   message: (data: { content: string; roomId: string }) => void;
   deleteMessage: (messageId: any, chatId: any) => void;
   updateStatus: (data: { status: string; userId: string }) => void;
+  getMessageHistory: (data: { chatId: string; page: number }) => void;
 }

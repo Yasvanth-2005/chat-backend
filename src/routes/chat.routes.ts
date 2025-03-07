@@ -43,27 +43,36 @@ router.get("/users/:userId/chats", async (req, res) => {
   }
 });
 
-router.get("/:chatId/messages", async (req: any, res: any) => {
+router.get("/chats/:chatId/messages", async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.chatId).populate(
-      "participants"
-    );
+    const chatId = req.params.chatId;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = 10 * page;
 
-    if (!chat) {
-      return res.status(404).json({ error: "Chat not found" });
-    }
+    // Get total count of messages
+    const totalMessages = await Message.countDocuments({ chatId });
 
-    const messages = await Message.find({
-      chatId: req.params.chatId,
-    }).populate("senderId");
+    // Get paginated messages
+    const messages = await Message.find({ chatId })
+      .populate("senderId", "displayName status active")
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    // Get chat participants
+    const chat = await Chat.findById(chatId)
+      .populate("participants", "displayName status active")
+      .lean();
 
     res.json({
-      name: chat.name ? chat.name : "",
-      messages,
-      participants: chat.participants,
+      messages: messages.reverse(),
+      participants: chat?.participants || [],
+      hasMore: totalMessages > limit,
+      total: totalMessages,
+      currentPage: page,
     });
   } catch (error) {
-    console.log(error);
+    console.error("Error fetching messages:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
