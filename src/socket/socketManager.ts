@@ -95,23 +95,19 @@ export const setupSocket = (
         "getMessageHistory",
         async ({ chatId, page = 1 }: { chatId: string; page: number }) => {
           try {
-            const limit = 10;
+            const limit = 10 * page;
             const skip = (page - 1) * limit;
 
-            // Get total count of messages
             const totalMessages = await Message.countDocuments({ chatId });
 
-            // Get paginated messages from newest to oldest
             const messages = await Message.find({ chatId })
               .populate("senderId", "displayName status active")
-              .sort({ createdAt: -1 }) // Sort by newest first
-              .skip(skip)
+              .sort({ createdAt: -1 })
               .limit(limit)
-              .lean(); // Use lean() for better performance
+              .lean();
 
-            // Send messages and pagination info
             socket.emit("messageHistory", {
-              messages: messages.reverse(), // Reverse to show oldest first in the current page
+              messages: messages.reverse(),
               hasMore: totalMessages > skip + limit,
               total: totalMessages,
               currentPage: page,
