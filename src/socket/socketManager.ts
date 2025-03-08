@@ -246,11 +246,10 @@ export const setupSocket = (
             if (chat) {
               // Notify all participants in the chat about the deleted message
               chat.participants.forEach((participant: PopulatedUser) => {
-                io.to(participant.socketId).emit(
-                  "messageDeleted",
+                io.to(participant.socketId).emit("messageDeleted", {
                   messageId,
-                  chatId
-                );
+                  chatId,
+                });
               });
             }
 

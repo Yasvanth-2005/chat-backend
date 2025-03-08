@@ -325,4 +325,78 @@ router.delete("/chats/:chatId", async (req: any, res: any) => {
   }
 });
 
+// Edit message
+router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
+  try {
+    const { chatId, messageId } = req.params;
+    const { content } = req.body;
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    if (message.chatId.toString() !== chatId) {
+      return res
+        .status(403)
+        .json({ error: "Message does not belong to this chat" });
+    }
+
+    message.content = content;
+    message.isEdited = true;
+    await message.save();
+
+    // Emit socket event for real-time update
+    io.to(chatId).emit("messageEdited", { chatId, messageId, content });
+
+    res.json({ message });
+  } catch (error) {
+    console.error("Error editing message:", error);
+    res.status(500).json({ error: "Failed to edit message" });
+  }
+});
+
+// Delete message
+router.delete(
+  "/chats/:chatId/messages/:messageId",
+  async (req: any, res: any) => {
+    try {
+      const { chatId, messageId } = req.params;
+
+      const message = await Message.findById(messageId);
+      if (!message) {
+        return res.status(404).json({ error: "Message not found" });
+      }
+
+      if (message.chatId.toString() !== chatId) {
+        return res
+          .status(403)
+          .json({ error: "Message does not belong to this chat" });
+      }
+
+      // Check if message is within 24 hours
+      const messageDate = new Date(message.createdAt);
+      const now = new Date();
+      const hoursDiff =
+        (now.getTime() - messageDate.getTime()) / (1000 * 60 * 60);
+
+      if (hoursDiff > 24) {
+        return res
+          .status(403)
+          .json({ error: "Messages can only be deleted within 24 hours" });
+      }
+
+      await message.deleteOne();
+
+      // Emit socket event for real-time update
+      io.to(chatId).emit("messageDeleted", { chatId, messageId });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting message:", error);
+      res.status(500).json({ error: "Failed to delete message" });
+    }
+  }
+);
+
 export default router;
