@@ -249,6 +249,7 @@ export const setupSocket = (
                 io.to(participant.socketId).emit("messageDeleted", {
                   messageId,
                   chatId,
+                  lastMessage: chat.lastMessage,
                 });
               });
             }

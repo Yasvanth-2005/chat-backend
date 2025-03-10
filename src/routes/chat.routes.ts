@@ -347,12 +347,17 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
     message.isEdited = true;
     await message.save();
 
-    // Emit socket event for real-time update
+    // Get the chat and its last message
+    const chat = await Chat.findById(chatId).populate("lastMessage");
+    const lastMessage = chat?.lastMessage;
+
+    // Emit socket event for real-time update with lastMessage
     io.to(chatId).emit("messageEdited", {
       chatId,
       messageId,
       content,
       attachments: message.attachments,
+      lastMessage, // Include the last message
     });
 
     res.json({ message });
@@ -392,10 +397,37 @@ router.delete(
           .json({ error: "Messages can only be deleted within 24 hours" });
       }
 
+      // Check if this is the last message
+      const chat = await Chat.findById(chatId);
+      const isLastMessage = chat?.lastMessage?.toString() === messageId;
+
+      // Delete the message
       await message.deleteOne();
 
-      // Emit socket event for real-time update
-      io.to(chatId).emit("messageDeleted", { chatId, messageId });
+      // If it was the last message, update chat's lastMessage to the previous message
+      let newLastMessage = null;
+      if (isLastMessage) {
+        // Find the new last message
+        const previousMessage = await Message.findOne({ chatId })
+          .sort({ createdAt: -1 })
+          .populate("senderId");
+
+        if (previousMessage) {
+          await Chat.findByIdAndUpdate(chatId, {
+            lastMessage: previousMessage._id,
+          });
+          newLastMessage = previousMessage;
+        } else {
+          await Chat.findByIdAndUpdate(chatId, { lastMessage: null });
+        }
+      }
+
+      // Emit socket event for real-time update with lastMessage
+      io.to(chatId).emit("messageDeleted", {
+        chatId,
+        messageId,
+        lastMessage: newLastMessage, // Include the new last message
+      });
 
       res.json({ success: true });
     } catch (error) {

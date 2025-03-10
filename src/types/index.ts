@@ -25,7 +25,11 @@ export interface IChat extends Document {
 
 export interface ServerToClientEvents {
   userJoined: (data: { user: IUser }) => void;
-  messageDeleted: (data: { messageId: any; chatId: any }) => void;
+  messageDeleted: (data: {
+    messageId: any;
+    chatId: any;
+    lastMessage: any;
+  }) => void;
   chatUpdated: (chatId: any, newLastMessage: any) => void;
   chatStarted: (chat: IChat) => void;
   messageSent: (message: any) => void;
@@ -48,6 +52,7 @@ export interface ServerToClientEvents {
     messageId: any;
     content: any;
     attachments: any[];
+    lastMessage: any;
   }) => void;
 }
 
