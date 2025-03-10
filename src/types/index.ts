@@ -43,7 +43,12 @@ export interface ServerToClientEvents {
     status: any;
     active: boolean;
   }) => void;
-  messageEdited: (data: { chatId: any; messageId: any; content: any }) => void;
+  messageEdited: (data: {
+    chatId: any;
+    messageId: any;
+    content: any;
+    attachments: any[];
+  }) => void;
 }
 
 export interface ClientToServerEvents {

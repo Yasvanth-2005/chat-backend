@@ -329,7 +329,7 @@ router.delete("/chats/:chatId", async (req: any, res: any) => {
 router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
   try {
     const { chatId, messageId } = req.params;
-    const { content } = req.body;
+    const { content, attachments } = req.body;
 
     const message = await Message.findById(messageId);
     if (!message) {
@@ -342,12 +342,18 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
         .json({ error: "Message does not belong to this chat" });
     }
 
-    message.content = content;
+    message.body = content;
+    message.attachments = attachments || [];
     message.isEdited = true;
     await message.save();
 
     // Emit socket event for real-time update
-    io.to(chatId).emit("messageEdited", { chatId, messageId, content });
+    io.to(chatId).emit("messageEdited", {
+      chatId,
+      messageId,
+      content,
+      attachments: message.attachments,
+    });
 
     res.json({ message });
   } catch (error) {
