@@ -4,6 +4,7 @@ import Message from "../models/Message";
 import ChatUser from "../models/User";
 import User from "../models/User";
 import { io } from "../socket/socketManager";
+import { deleteMessage } from "../controllers/message.controller";
 
 const router = Router();
 
@@ -54,14 +55,14 @@ router.get("/chats/:chatId/messages", async (req, res) => {
 
     // Get paginated messages
     const messages = await Message.find({ chatId })
-      .populate("senderId", "displayName status active")
+      .populate("senderId", "displayName status active email phoneNumber")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
 
     // Get chat participants
     const chat = await Chat.findById(chatId)
-      .populate("participants", "displayName status active")
+      .populate("participants", "displayName status active email phoneNumber")
       .lean();
 
     res.json({
@@ -368,73 +369,6 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
 });
 
 // Delete message
-router.delete(
-  "/chats/:chatId/messages/:messageId",
-  async (req: any, res: any) => {
-    try {
-      const { chatId, messageId } = req.params;
-
-      const message = await Message.findById(messageId);
-      if (!message) {
-        return res.status(404).json({ error: "Message not found" });
-      }
-
-      if (message.chatId.toString() !== chatId) {
-        return res
-          .status(403)
-          .json({ error: "Message does not belong to this chat" });
-      }
-
-      // Check if message is within 24 hours
-      const messageDate = new Date(message.createdAt);
-      const now = new Date();
-      const hoursDiff =
-        (now.getTime() - messageDate.getTime()) / (1000 * 60 * 60);
-
-      if (hoursDiff > 24) {
-        return res
-          .status(403)
-          .json({ error: "Messages can only be deleted within 24 hours" });
-      }
-
-      // Check if this is the last message
-      const chat = await Chat.findById(chatId);
-      const isLastMessage = chat?.lastMessage?.toString() === messageId;
-
-      // Delete the message
-      await message.deleteOne();
-
-      // If it was the last message, update chat's lastMessage to the previous message
-      let newLastMessage = null;
-      if (isLastMessage) {
-        // Find the new last message
-        const previousMessage = await Message.findOne({ chatId })
-          .sort({ createdAt: -1 })
-          .populate("senderId");
-
-        if (previousMessage) {
-          await Chat.findByIdAndUpdate(chatId, {
-            lastMessage: previousMessage._id,
-          });
-          newLastMessage = previousMessage;
-        } else {
-          await Chat.findByIdAndUpdate(chatId, { lastMessage: null });
-        }
-      }
-
-      // Emit socket event for real-time update with lastMessage
-      io.to(chatId).emit("messageDeleted", {
-        chatId,
-        messageId,
-        lastMessage: newLastMessage, // Include the new last message
-      });
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error deleting message:", error);
-      res.status(500).json({ error: "Failed to delete message" });
-    }
-  }
-);
+router.delete("/messages/:messageId", deleteMessage);
 
 export default router;

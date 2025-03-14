@@ -1,7 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { Types } from "mongoose";
 import ChatUser, { IUser } from "../models/User";
-import Message, { IMessage } from "../models/Message";
+import Message from "../models/Message";
 import Chat, { IChat } from "../models/Chat";
 import type { ServerToClientEvents, ClientToServerEvents } from "../types";
 
@@ -235,8 +235,12 @@ export const setupSocket = (
               return;
             }
 
-            // Delete the message
-            await Message.findByIdAndDelete(messageId);
+            // Add user to deletedFor array if not already present
+            if (!message.deletedFor?.includes(user._id)) {
+              message.deletedFor = message.deletedFor || [];
+              message.deletedFor.push(user._id);
+              await message.save();
+            }
 
             // Get the chat to notify other participants
             const chat = await Chat.findById(chatId).populate<{
@@ -244,33 +248,19 @@ export const setupSocket = (
             }>("participants", "socketId");
 
             if (chat) {
+              // Get the last visible message for this user
+              const lastVisibleMessage = await Message.findOne({
+                chatId,
+                deletedFor: { $ne: user._id },
+              }).sort({ createdAt: -1 });
+
               // Notify all participants in the chat about the deleted message
               chat.participants.forEach((participant: PopulatedUser) => {
                 io.to(participant.socketId).emit("messageDeleted", {
                   messageId,
                   chatId,
-                  lastMessage: chat.lastMessage,
+                  lastMessage: lastVisibleMessage,
                 });
-              });
-            }
-
-            // If this was the last message, update the chat's lastMessage
-            if (chat?.lastMessage?.toString() === messageId) {
-              // Find the new last message
-              const newLastMessage = await Message.findOne({ chatId: chatId })
-                .sort({ createdAt: -1 })
-                .limit(1);
-
-              chat.lastMessage = newLastMessage?._id || null;
-              await chat.save();
-
-              // Notify participants about the updated last message
-              chat.participants.forEach((participant: PopulatedUser) => {
-                io.to(participant.socketId).emit(
-                  "chatUpdated",
-                  chatId,
-                  newLastMessage
-                );
               });
             }
           } catch (error) {
