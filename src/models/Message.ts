@@ -8,6 +8,11 @@ interface IAttachment {
   preview?: string;
 }
 
+interface IReaction {
+  userId: mongoose.Types.ObjectId;
+  emoji: string;
+}
+
 interface IMessage {
   chatId: mongoose.Types.ObjectId;
   senderId: mongoose.Types.ObjectId;
@@ -16,15 +21,21 @@ interface IMessage {
   attachments: IAttachment[];
   isEdited: boolean;
   deletedFor: mongoose.Types.ObjectId[];
+  reactions: IReaction[];
   createdAt: Date;
 }
 
 const attachmentSchema = new Schema<IAttachment>({
-  name: { type: String, required: true },
-  size: { type: Number, required: true },
-  type: { type: String, required: true },
-  url: { type: String, required: true },
+  name: { type: String },
+  size: { type: Number },
+  type: { type: String },
+  url: { type: String },
   preview: { type: String },
+});
+
+const reactionSchema = new Schema<IReaction>({
+  userId: { type: Schema.Types.ObjectId, ref: "chatusers", required: true },
+  emoji: { type: String, required: true },
 });
 
 const messageSchema = new Schema<IMessage>({
@@ -36,6 +47,7 @@ const messageSchema = new Schema<IMessage>({
   attachments: { type: [attachmentSchema], default: [] },
   isEdited: { type: Boolean, default: false },
   deletedFor: [{ type: Schema.Types.ObjectId, ref: "chatusers" }],
+  reactions: { type: [reactionSchema], default: [] },
 });
 
 export default mongoose.model<IMessage>("Message", messageSchema);
