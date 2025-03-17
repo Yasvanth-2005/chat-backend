@@ -56,6 +56,7 @@ router.get("/chats/:chatId/messages", async (req, res) => {
     // Get paginated messages
     const messages = await Message.find({ chatId })
       .populate("senderId", "displayName status active email phoneNumber")
+      .populate("replyTo", "body attachments")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();

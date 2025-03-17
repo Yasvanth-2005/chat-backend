@@ -8,25 +8,39 @@ export const deleteMessage: RequestHandler = async (req: any, res: any) => {
     const { messageId } = req.params;
     const { chatId, userId } = req.body;
 
-    const message = await Message.findById(messageId);
+    // First find the message to verify it exists and belongs to the user
+    const message = await Message.findOne({ _id: messageId, chatId });
+
     if (!message) {
       return res.status(404).json({ error: "Message not found" });
     }
 
-    // Add user to deletedFor array if not already present
-    if (!message.deletedFor?.includes(userId)) {
-      message.deletedFor = message.deletedFor || [];
-      message.deletedFor.push(userId);
-      await message.save();
+    // Verify the user has permission to delete this message
+    if (message.senderId.toString() !== userId) {
+      return res
+        .status(403)
+        .json({ error: "Not authorized to delete this message" });
     }
 
+    // Delete the message
+    await Message.findByIdAndDelete(messageId);
+
     // Get the last message for the chat
-    const lastMessage = await Message.findOne({ chatId })
+    const lastMessage = await Message.findOne({
+      chatId,
+      _id: { $ne: messageId }, // Exclude the deleted message
+    })
       .sort({ createdAt: -1 })
-      .select("body createdAt");
+      .select("body createdAt")
+      .lean();
+
+    // Update the chat's lastMessage if needed
+    if (lastMessage) {
+      await Chat.findByIdAndUpdate(chatId, { lastMessage: lastMessage._id });
+    }
 
     // Emit socket event
-    io.to(chatId).emit("messageDeleted", {
+    io.emit("messageDeleted", {
       chatId,
       messageId,
       lastMessage,

@@ -22,6 +22,7 @@ interface IMessage {
   isEdited: boolean;
   deletedFor: mongoose.Types.ObjectId[];
   reactions: IReaction[];
+  replyTo: mongoose.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -48,6 +49,7 @@ const messageSchema = new Schema<IMessage>({
   isEdited: { type: Boolean, default: false },
   deletedFor: [{ type: Schema.Types.ObjectId, ref: "chatusers" }],
   reactions: { type: [reactionSchema], default: [] },
+  replyTo: { type: Schema.Types.ObjectId, ref: "Message" },
 });
 
 export default mongoose.model<IMessage>("Message", messageSchema);

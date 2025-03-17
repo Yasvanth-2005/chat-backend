@@ -149,17 +149,20 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
               chatId: new Types.ObjectId(chatId),
               type: content.type,
               attachments: content.attachments,
+              replyTo: content.replyTo
+                ? new Types.ObjectId(content.replyTo)
+                : undefined,
             });
 
             chat.lastMessage = message._id;
             await chat.save();
 
-            const populatedMessage: any = await Message.findById(
-              message._id
-            ).populate<{ senderId: PopulatedUser }>(
-              "senderId",
-              "displayName active status"
-            );
+            const populatedMessage: any = await Message.findById(message._id)
+              .populate<{ senderId: PopulatedUser }>(
+                "senderId",
+                "displayName active status"
+              )
+              .populate("replyTo");
 
             console.log(populatedMessage);
             if (populatedMessage) {
@@ -324,6 +327,7 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
 
           if (chat) {
             chat.participants.forEach((participant: PopulatedUser) => {
+              console.log(emoji);
               io.to(participant.socketId).emit("messageReaction", {
                 messageId,
                 chatId,
