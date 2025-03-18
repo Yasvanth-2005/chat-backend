@@ -359,7 +359,7 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
       messageId,
       content,
       attachments: message.attachments,
-      lastMessage, // Include the last message
+      lastMessage,
     });
 
     res.json({ message });
