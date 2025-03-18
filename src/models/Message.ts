@@ -40,7 +40,7 @@ const reactionSchema = new Schema<IReaction>({
 });
 
 const messageSchema = new Schema<IMessage>({
-  body: { type: String, required: true },
+  body: { type: String },
   senderId: { type: Schema.Types.ObjectId, ref: "chatusers", required: true },
   chatId: { type: Schema.Types.ObjectId, ref: "Chat", required: true },
   type: { type: String, enum: ["text", "image", "file"], default: "text" },
