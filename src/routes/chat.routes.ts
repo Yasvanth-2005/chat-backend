@@ -372,68 +372,142 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
 // Delete message
 router.delete("/messages/:messageId", deleteMessage);
 
-import ExcelJS from "exceljs";
-router.post("/export", async (req, res) => {
+import jsPDF from "jspdf";
+
+router.post("/export", async (req: any, res: any) => {
   try {
     const { conversationId, userId } = req.body;
 
-    // Get all messages for the conversation
-    const messages = await Message.find({ conversationId })
+    // Validate input
+    if (!conversationId || !userId) {
+      return res
+        .status(400)
+        .json({ error: "Missing conversationId or userId" });
+    }
+
+    console.log("Received conversationId:", conversationId); // Debug
+
+    // Use chatId instead of conversationId in the query
+    const messages = await Message.find({ chatId: conversationId })
       .sort({ createdAt: 1 })
-      .populate("senderId", "firstname lastname email");
+      .populate("senderId", "displayName email");
 
-    // Create a new workbook and worksheet
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("Chat Export");
+    console.log("Messages fetched:", messages); // Debug: Check if messages are retrieved
 
-    // Define columns
-    worksheet.columns = [
-      { header: "Timestamp", key: "timestamp", width: 20 },
-      { header: "Sender", key: "sender", width: 20 },
-      { header: "Message", key: "message", width: 50 },
-      { header: "Type", key: "type", width: 15 },
-    ];
+    if (!messages || messages.length === 0) {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+      doc.setFontSize(16);
+      doc.text(`Chat Export - Conversation ${conversationId}`, 105, 20, {
+        align: "center",
+      });
+      doc.setFontSize(12);
+      doc.text("No messages found for this conversation", 10, 40);
+      doc.text("Page 1", 105, 287, { align: "center" });
 
-    // Add rows
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename=chat-${conversationId}.pdf`
+      );
+      const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
+      return res.send(pdfBuffer);
+    }
+
+    // Create PDF document
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+    const margin = 10;
+    const maxWidth = 190;
+    const lineHeight = 7;
+    let yPosition = 20;
+    let pageNumber = 1;
+
+    // Add header
+    doc.setFontSize(16);
+    doc.text(`Chat Export - Conversation ${conversationId}`, 105, yPosition, {
+      align: "center",
+    });
+    yPosition += 15;
+
+    // Process messages (no 10-message limit)
     messages.forEach((message: any) => {
       const senderName = message.senderId
-        ? `${message.senderId.displayName}`
+        ? `${message.senderId.displayName}`.trim()
         : "Unknown";
       const messageType =
         message.attachments?.length > 0 ? "Attachment" : "Text";
-      const messageContent = message.body || "Attachment";
+      const messageContent = message.body || "[Attachment]";
+      const timestamp = message.createdAt
+        ? new Date(message.createdAt).toLocaleString()
+        : "Unknown Time";
 
-      worksheet.addRow({
-        timestamp: new Date(message.createdAt).toLocaleString(),
-        sender: senderName,
-        message: messageContent,
-        type: messageType,
-      });
+      const fullText = [
+        `Time: ${timestamp}`,
+        `Sender: ${senderName}`,
+        `Type: ${messageType}`,
+        `Message: ${messageContent}`,
+        "-------------------",
+      ].join("\n");
+
+      doc.setFontSize(10);
+      const splitText = doc.splitTextToSize(fullText, maxWidth);
+      const textHeight = splitText.length * lineHeight;
+
+      // Check if we need a new page
+      if (yPosition + textHeight > 260) {
+        // 260mm leaves room for footer
+        doc.setFontSize(10);
+        doc.text(`Page ${pageNumber}`, 105, 287, { align: "center" });
+        doc.addPage();
+        yPosition = 20;
+        pageNumber++;
+      }
+
+      doc.text(splitText, margin, yPosition);
+      yPosition += textHeight + 5; // Add extra spacing between messages
     });
 
-    // Style the header row
-    worksheet.getRow(1).font = { bold: true };
-    worksheet.getRow(1).alignment = {
-      vertical: "middle",
-      horizontal: "center",
-    };
+    // Add final page number
+    doc.setFontSize(10);
+    doc.text(`Page ${pageNumber}`, 105, 287, { align: "center" });
 
-    // Set response headers for Excel file download
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
+    // Set response headers
+    res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=chat-${conversationId}.xlsx`
+      `attachment; filename=chat-${conversationId}.pdf`
     );
 
-    // Write to buffer and send
-    const buffer = await workbook.xlsx.writeBuffer();
-    res.send(buffer);
-  } catch (error) {
+    const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
+    console.log("PDF Buffer size:", pdfBuffer.length); // Debug
+    res.send(pdfBuffer);
+  } catch (error: any) {
     console.error("Error exporting chat:", error);
-    res.status(500).json({ error: "Failed to export chat" });
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+    doc.setFontSize(16);
+    doc.text("Chat Export Error", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(`Error: ${error.message || "Unknown error occurred"}`, 10, 40);
+    doc.text("Page 1", 105, 287, { align: "center" });
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=chat-any-error.pdf`
+    );
+    const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
+    res.send(pdfBuffer);
   }
 });
 
