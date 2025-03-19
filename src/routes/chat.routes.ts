@@ -372,4 +372,69 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
 // Delete message
 router.delete("/messages/:messageId", deleteMessage);
 
+import ExcelJS from "exceljs";
+router.post("/export", async (req, res) => {
+  try {
+    const { conversationId, userId } = req.body;
+
+    // Get all messages for the conversation
+    const messages = await Message.find({ conversationId })
+      .sort({ createdAt: 1 })
+      .populate("senderId", "firstname lastname email");
+
+    // Create a new workbook and worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Chat Export");
+
+    // Define columns
+    worksheet.columns = [
+      { header: "Timestamp", key: "timestamp", width: 20 },
+      { header: "Sender", key: "sender", width: 20 },
+      { header: "Message", key: "message", width: 50 },
+      { header: "Type", key: "type", width: 15 },
+    ];
+
+    // Add rows
+    messages.forEach((message: any) => {
+      const senderName = message.senderId
+        ? `${message.senderId.displayName}`
+        : "Unknown";
+      const messageType =
+        message.attachments?.length > 0 ? "Attachment" : "Text";
+      const messageContent = message.body || "Attachment";
+
+      worksheet.addRow({
+        timestamp: new Date(message.createdAt).toLocaleString(),
+        sender: senderName,
+        message: messageContent,
+        type: messageType,
+      });
+    });
+
+    // Style the header row
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.getRow(1).alignment = {
+      vertical: "middle",
+      horizontal: "center",
+    };
+
+    // Set response headers for Excel file download
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=chat-${conversationId}.xlsx`
+    );
+
+    // Write to buffer and send
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.send(buffer);
+  } catch (error) {
+    console.error("Error exporting chat:", error);
+    res.status(500).json({ error: "Failed to export chat" });
+  }
+});
+
 export default router;
