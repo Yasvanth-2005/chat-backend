@@ -48,7 +48,7 @@ router.get("/chats/:chatId/messages", async (req, res) => {
   try {
     const chatId = req.params.chatId;
     const page = parseInt(req.query.page as string) || 1;
-    const limit = 10 * page;
+    const limit = 20 * page;
 
     // Get total count of messages
     const totalMessages = await Message.countDocuments({ chatId });
