@@ -387,7 +387,7 @@ router.post("/export", async (req: any, res: any) => {
 
     console.log("Received conversationId:", conversationId); // Debug
 
-    // Use chatId instead of conversationId in the query
+    // Fetch messages using chatId
     const messages = await Message.find({ chatId: conversationId })
       .sort({ createdAt: 1 })
       .populate("senderId", "displayName email");
@@ -423,8 +423,9 @@ router.post("/export", async (req: any, res: any) => {
       unit: "mm",
       format: "a4",
     });
-    const margin = 10;
-    const maxWidth = 190;
+    const leftMargin = 10; // Left side for others' messages
+    const rightMargin = 200; // Right side for user's messages (A4 width is 210mm)
+    const maxWidth = 190; // Max width for text wrapping
     const lineHeight = 7;
     let yPosition = 20;
     let pageNumber = 1;
@@ -436,7 +437,7 @@ router.post("/export", async (req: any, res: any) => {
     });
     yPosition += 15;
 
-    // Process messages (no 10-message limit)
+    // Process messages
     messages.forEach((message: any) => {
       const senderName = message.senderId
         ? `${message.senderId.displayName}`.trim()
@@ -462,7 +463,6 @@ router.post("/export", async (req: any, res: any) => {
 
       // Check if we need a new page
       if (yPosition + textHeight > 260) {
-        // 260mm leaves room for footer
         doc.setFontSize(10);
         doc.text(`Page ${pageNumber}`, 105, 287, { align: "center" });
         doc.addPage();
@@ -470,7 +470,21 @@ router.post("/export", async (req: any, res: any) => {
         pageNumber++;
       }
 
-      doc.text(splitText, margin, yPosition);
+      // Determine if this is the user's message
+      const isUserMessage =
+        message.senderId &&
+        message.senderId._id.toString() === userId.toString();
+
+      // Set x position based on sender
+      const xPosition = isUserMessage ? rightMargin : leftMargin;
+
+      // If it's the user's message, align text to the right
+      if (isUserMessage) {
+        doc.text(splitText, xPosition, yPosition, { align: "right" });
+      } else {
+        doc.text(splitText, xPosition, yPosition);
+      }
+
       yPosition += textHeight + 5; // Add extra spacing between messages
     });
 
@@ -502,13 +516,9 @@ router.post("/export", async (req: any, res: any) => {
     doc.text("Page 1", 105, 287, { align: "center" });
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename=chat-any-error.pdf`
-    );
+    res.setHeader("Content-Disposition", `attachment; filename=chat-error.pdf`);
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
     res.send(pdfBuffer);
   }
 });
-
 export default router;
