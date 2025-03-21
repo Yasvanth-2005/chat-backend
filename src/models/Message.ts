@@ -20,7 +20,6 @@ interface IMessage {
   type: "text" | "image" | "file";
   attachments: IAttachment[];
   isEdited: boolean;
-  deletedFor: mongoose.Types.ObjectId[];
   reactions: IReaction[];
   replyTo: mongoose.Types.ObjectId;
   createdAt: Date;
@@ -47,7 +46,6 @@ const messageSchema = new Schema<IMessage>({
   createdAt: { type: Date, default: Date.now },
   attachments: { type: [attachmentSchema], default: [] },
   isEdited: { type: Boolean, default: false },
-  deletedFor: [{ type: Schema.Types.ObjectId, ref: "chatusers" }],
   reactions: { type: [reactionSchema], default: [] },
   replyTo: { type: Schema.Types.ObjectId, ref: "Message" },
 });

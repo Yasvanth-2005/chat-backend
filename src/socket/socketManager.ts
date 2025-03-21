@@ -136,7 +136,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
       "directMessage",
       async ({ chatId, content }: { chatId: string; content: any }) => {
         try {
-          console.log(content);
           const user = await ChatUser.findOne({ socketId: socket.id });
           const chat: any = await Chat.findById(chatId).populate<{
             participants: PopulatedUser[];
@@ -244,13 +243,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
           if (message.senderId.toString() !== user._id.toString()) {
             console.error("User not authorized to delete this message");
             return;
-          }
-
-          // Add user to deletedFor array if not already present
-          if (!message.deletedFor?.includes(user._id)) {
-            message.deletedFor = message.deletedFor || [];
-            message.deletedFor.push(user._id);
-            await message.save();
           }
 
           // Get the chat to notify other participants

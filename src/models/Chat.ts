@@ -5,6 +5,12 @@ export interface IChat extends Document {
   participants: string[];
   lastMessage?: string;
   createdAt: Date;
+  deletedFor: IDeletedFor[];
+}
+
+interface IDeletedFor {
+  userId: mongoose.Types.ObjectId;
+  lastMessageTime: Date;
 }
 
 const ChatSchema = new Schema({
@@ -24,6 +30,19 @@ const ChatSchema = new Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+  deletedFor: {
+    type: [
+      {
+        userId: {
+          type: Schema.Types.ObjectId,
+          ref: "chatusers",
+          required: true,
+        },
+        lastMessageTime: { type: Date, required: true },
+      },
+    ],
+    default: [],
   },
 });
 

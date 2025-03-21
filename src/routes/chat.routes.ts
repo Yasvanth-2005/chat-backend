@@ -19,56 +19,88 @@ router.get("/users", async (req, res) => {
 
 router.get("/users/:userId/chats", async (req, res) => {
   try {
-    const chats = await Chat.find({ participants: req.params.userId })
+    const userId = req.params.userId;
+
+    const chats = await Chat.find({ participants: userId })
       .populate("participants")
       .populate({
         path: "lastMessage",
       });
 
-    chats.sort((a: any, b: any) => {
+    const filteredChats = chats.filter((chat: any) => {
+      const deletedEntry = chat.deletedFor.find(
+        (d: any) => d.userId.toString() === userId.toString()
+      );
+
+      if (!deletedEntry) return true;
+
+      return chat.lastMessage?.createdAt !== deletedEntry.lastMessageTime;
+    });
+
+    filteredChats.sort((a: any, b: any) => {
       const dateA = a.lastMessage?.createdAt
         ? new Date(a.lastMessage.createdAt).getTime()
         : 0;
       const dateB = b.lastMessage?.createdAt
         ? new Date(b.lastMessage.createdAt).getTime()
         : 0;
-
-      console.log(dateB - dateA);
       return dateB - dateA;
     });
 
-    res.json({ conversations: chats });
+    res.json({ conversations: filteredChats });
   } catch (error) {
     console.error("Error fetching chats:", error);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-router.get("/chats/:chatId/messages", async (req, res) => {
+router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
   try {
-    const chatId = req.params.chatId;
+    const { chatId, userId } = req.params;
     const page = parseInt(req.query.page as string) || 1;
     const limit = 20 * page;
 
-    // Get total count of messages
-    const totalMessages = await Message.countDocuments({ chatId });
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: "Invalid userId" });
+    }
 
-    // Get paginated messages
-    const messages = await Message.find({ chatId })
+    const chat = await Chat.findById(chatId)
+      .populate("participants", "displayName status active email phoneNumber")
+      .lean();
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    if (!chat.participants.some((p: any) => p._id.equals(userObjectId))) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    const deletedEntry = chat?.deletedFor?.find((d: any) =>
+      d.userId.equals(userObjectId)
+    );
+
+    let query: any = { chatId };
+    if (deletedEntry) {
+      query = {
+        ...query,
+        createdAt: { $gt: deletedEntry.lastMessageTime },
+      };
+    }
+
+    const totalMessages = await Message.countDocuments(query);
+
+    const messages = await Message.find(query)
       .populate("senderId", "displayName status active email phoneNumber")
       .populate("replyTo", "body attachments")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
 
-    // Get chat participants
-    const chat = await Chat.findById(chatId)
-      .populate("participants", "displayName status active email phoneNumber")
-      .lean();
-
     res.json({
       messages: messages.reverse(),
-      participants: chat?.participants || [],
+      participants: chat.participants || [],
       hasMore: totalMessages > limit,
       total: totalMessages,
       currentPage: page,
@@ -305,22 +337,46 @@ router.post("/chats/teams", async (req: any, res: any) => {
   }
 });
 
-router.delete("/chats/:chatId", async (req: any, res: any) => {
+router.delete("/chats/:chatId/:userId?", async (req: any, res: any) => {
   try {
-    const { chatId } = req.params;
+    const { chatId, userId } = req.params;
+    const bodyUserId = req.body.userId;
+    const finalUserId = userId || bodyUserId;
 
-    const chat = await Chat.findById(chatId);
+    if (!finalUserId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const chat: any = await Chat.findById(chatId).populate("lastMessage");
     if (!chat) {
       return res.status(404).json({ error: "Chat not found" });
     }
 
-    await Message.deleteMany({ chatId });
+    if (!chat.participants.some((p: any) => p.toString() === finalUserId)) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
 
-    await Chat.findByIdAndDelete(chatId);
+    const lastMessageTime = chat.lastMessage
+      ? chat.lastMessage.createdAt
+      : new Date();
 
-    return res
-      .status(200)
-      .json({ message: "Chat and related messages deleted successfully" });
+    // Check if user already has a deletedFor entry
+    const existingDelete = chat.deletedFor.find(
+      (d: any) => d.userId.toString() === finalUserId.toString()
+    );
+
+    if (existingDelete) {
+      existingDelete.lastMessageTime = lastMessageTime;
+    } else {
+      chat.deletedFor.push({
+        userId: finalUserId,
+        lastMessageTime,
+      });
+    }
+
+    await chat.save();
+
+    return res.status(200).json({ message: "Chat deleted successfully" });
   } catch (error) {
     console.error("Error deleting chat:", error);
     res.status(500).json({ error: "Server error" });
@@ -373,6 +429,7 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
 router.delete("/messages/:messageId", deleteMessage);
 
 import jsPDF from "jspdf";
+import mongoose from "mongoose";
 
 router.post("/export", async (req: any, res: any) => {
   try {
