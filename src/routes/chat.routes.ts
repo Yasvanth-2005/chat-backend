@@ -34,7 +34,11 @@ router.get("/users/:userId/chats", async (req, res) => {
 
       if (!deletedEntry) return true;
 
-      return chat.lastMessage?.createdAt !== deletedEntry.lastMessageTime;
+      return (
+        !chat.lastMessage?.createdAt ||
+        new Date(chat.lastMessage.createdAt).getTime() >
+          new Date(deletedEntry.lastMessageTime).getTime()
+      );
     });
 
     filteredChats.sort((a: any, b: any) => {
@@ -155,11 +159,12 @@ router.post("/chats", async (req: any, res: any) => {
 router.post("/chats/multiple", async (req: any, res: any) => {
   try {
     const { userId, recipients, message } = req.body;
-    console.log(message, userId, recipients);
 
     if (!userId || !Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({ error: "Invalid user or recipients" });
     }
+
+    console.log(recipients);
 
     const user = await User.findById(userId);
     if (!user) {
@@ -172,16 +177,16 @@ router.post("/chats/multiple", async (req: any, res: any) => {
         console.log(recipient);
         const newUser = {
           _id: recipient._id,
-          displayName: `${recipient.firstname} ${recipient.lastname}`,
+          displayName: `${recipient.displayName}`,
           email: recipient.email,
           about: "About",
           role: recipient.role,
           isPublic: true,
-          country: recipient.billingAddress?.country || "India",
-          address: recipient.billingAddress?.address || "90210 Broadway Blvd",
-          state: recipient.billingAddress?.state || "California",
-          city: recipient.billingAddress?.city || "San Francisco",
-          zipCode: recipient.billingAddress?.postalCode || "94116",
+          country: recipient?.billingAddress?.country || "India",
+          address: recipient?.billingAddress?.address || "90210 Broadway Blvd",
+          state: recipient?.billingAddress?.state || "California",
+          city: recipient?.billingAddress?.city || "San Francisco",
+          zipCode: recipient?.billingAddress?.postalCode || "94116",
           photoURL: recipient.profile_image,
           phoneNumber: recipient.phone,
         };
@@ -266,16 +271,17 @@ router.post("/chats/teams", async (req: any, res: any) => {
         if (!contactUser) {
           const newUser = {
             _id: recipient._id,
-            displayName: `${recipient.firstname} ${recipient.lastname}`,
+            displayName: `${recipient.displayName}`,
             email: recipient.email,
             about: "About",
             role: recipient.role.role,
             isPublic: true,
-            country: recipient.billingAddress?.country || "India",
-            address: recipient.billingAddress?.address || "90210 Broadway Blvd",
-            state: recipient.billingAddress?.state || "California",
-            city: recipient.billingAddress?.city || "San Francisco",
-            zipCode: recipient.billingAddress?.postalCode || "94116",
+            country: recipient?.billingAddress?.country || "India",
+            address:
+              recipient?.billingAddress?.address || "90210 Broadway Blvd",
+            state: recipient?.billingAddress?.state || "California",
+            city: recipient?.billingAddress?.city || "San Francisco",
+            zipCode: recipient?.billingAddress?.postalCode || "94116",
           };
           contactUser = await User.create(newUser);
         }
@@ -389,6 +395,8 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
     const { chatId, messageId } = req.params;
     const { content, attachments } = req.body;
 
+    console.log(chatId, messageId);
+
     const message = await Message.findById(messageId);
     if (!message) {
       return res.status(404).json({ error: "Message not found" });
@@ -410,7 +418,7 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
     const lastMessage = chat?.lastMessage;
 
     // Emit socket event for real-time update with lastMessage
-    io.to(chatId).emit("messageEdited", {
+    io.emit("messageEdited", {
       chatId,
       messageId,
       content,

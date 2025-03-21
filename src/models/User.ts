@@ -29,7 +29,6 @@ const ChatUserSchema = new Schema<IUser>({
   displayName: {
     type: String,
     required: true,
-    unique: true,
   },
   socketId: {
     type: String,
