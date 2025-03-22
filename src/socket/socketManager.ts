@@ -163,17 +163,14 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
               )
               .populate("replyTo");
 
-            console.log(populatedMessage);
             if (populatedMessage) {
               chat.participants.forEach((participant: any) => {
-                if (participant.socketId !== socket.id) {
-                  console.log(`Sending message to: ${participant.socketId}`);
-                  // Send the new message
-                  io.to(participant.socketId).emit("messageSent", {
-                    message: populatedMessage,
-                    chatId: chatId,
-                  });
-                }
+                console.log(`Sending message to: ${participant.socketId}`);
+                // Send the new message
+                io.to(participant.socketId).emit("messageSent", {
+                  message: populatedMessage,
+                  chatId: chatId,
+                });
               });
             }
           }

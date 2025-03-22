@@ -5,6 +5,7 @@ import ChatUser from "../models/User";
 import User from "../models/User";
 import { io } from "../socket/socketManager";
 import { deleteMessage } from "../controllers/message.controller";
+import { Types } from "mongoose";
 
 const router = Router();
 
@@ -586,4 +587,61 @@ router.post("/export", async (req: any, res: any) => {
     res.send(pdfBuffer);
   }
 });
+
+// Send message
+router.post("/messages", async (req: any, res: any) => {
+  try {
+    const { chatId, content } = req.body;
+    const userId = content.senderId._id;
+
+    const user = await ChatUser.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const chat: any = await Chat.findById(chatId).populate<{
+      participants: any[];
+    }>("participants", "socketId displayName active status");
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    const message = await Message.create({
+      body: content.body,
+      senderId: user._id,
+      chatId: new Types.ObjectId(chatId),
+      type: content.type,
+      attachments: content.attachments,
+      replyTo: content.replyTo
+        ? new Types.ObjectId(content.replyTo)
+        : undefined,
+    });
+
+    chat.lastMessage = message._id;
+    await chat.save();
+
+    const populatedMessage: any = await Message.findById(message._id)
+      .populate<{ senderId: any }>("senderId", "displayName active status")
+      .populate("replyTo");
+
+    if (populatedMessage) {
+      // Notify all participants about the new message
+      chat.participants.forEach((participant: any) => {
+        if (participant.socketId) {
+          io.to(participant.socketId).emit("messageSent", {
+            message: populatedMessage,
+            chatId: chatId,
+          });
+        }
+      });
+    }
+
+    res.json({ message: populatedMessage });
+  } catch (error) {
+    console.error("Send message error:", error);
+    res.status(500).json({ error: "Failed to send message" });
+  }
+});
+
 export default router;
