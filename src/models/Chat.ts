@@ -29,7 +29,7 @@ const ChatSchema = new Schema({
   },
   chatType: {
     type: String,
-    default: "Regular",
+    default: "Direct",
   },
   createdAt: {
     type: Date,

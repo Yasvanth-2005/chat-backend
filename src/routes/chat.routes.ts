@@ -211,7 +211,7 @@ router.post("/chats/multiple", async (req: any, res: any) => {
         participants,
         lastMessage: null,
         isGroup: true,
-        chatType: recipients.length === 1 ? "Regular" : "Group",
+        chatType: recipients.length === 1 ? "Direct" : "Group",
       });
     }
 
