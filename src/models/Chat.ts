@@ -27,6 +27,10 @@ const ChatSchema = new Schema({
     type: Schema.Types.ObjectId,
     ref: "Message",
   },
+  chatType: {
+    type: String,
+    default: "Regular",
+  },
   createdAt: {
     type: Date,
     default: Date.now,

@@ -99,6 +99,7 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
     const messages = await Message.find(query)
       .populate("senderId", "displayName status active email phoneNumber")
       .populate("replyTo", "body attachments")
+      .populate("chatId", "chatType")
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
@@ -210,6 +211,7 @@ router.post("/chats/multiple", async (req: any, res: any) => {
         participants,
         lastMessage: null,
         isGroup: true,
+        chatType: recipients.length === 1 ? "Regular" : "Group",
       });
     }
 
@@ -306,6 +308,7 @@ router.post("/chats/teams", async (req: any, res: any) => {
         participants,
         lastMessage: null,
         isGroup: true,
+        chatType: "Team",
       });
     }
 
