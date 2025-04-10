@@ -294,11 +294,11 @@ router.post("/chats/teams", async (req: any, res: any) => {
 
     const participants = [userId, ...recipientIds];
 
-    let chat = await Chat.findOneAndUpdate(
+    let chat = await Chat.findOne(
       {
         participants: { $all: participants, $size: participants.length },
+        name,
       },
-      { name },
       { new: true }
     );
 
