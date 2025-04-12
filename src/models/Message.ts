@@ -42,7 +42,11 @@ const messageSchema = new Schema<IMessage>({
   body: { type: String },
   senderId: { type: Schema.Types.ObjectId, ref: "chatusers", required: true },
   chatId: { type: Schema.Types.ObjectId, ref: "chats", required: true },
-  type: { type: String, enum: ["text", "image", "file"], default: "text" },
+  type: {
+    type: String,
+    enum: ["text", "image", "file", "system"],
+    default: "text",
+  },
   createdAt: { type: Date, default: Date.now },
   attachments: { type: [attachmentSchema], default: [] },
   isEdited: { type: Boolean, default: false },

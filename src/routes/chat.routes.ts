@@ -69,7 +69,7 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
       return res.status(400).json({ error: "Invalid userId" });
     }
 
-    const chat = await Chat.findById(chatId)
+    const chat: any = await Chat.findById(chatId)
       .populate("participants", "displayName status active email phoneNumber")
       .lean();
 
@@ -110,6 +110,8 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
       hasMore: totalMessages > limit,
       total: totalMessages,
       currentPage: page,
+      name: chat.name || "",
+      type: chat.chatType || "Direct",
     });
   } catch (error) {
     console.error("Error fetching messages:", error);
@@ -119,39 +121,73 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
 
 router.post("/chats", async (req: any, res: any) => {
   try {
-    const { userId, contact } = req.body;
+    const { userId, contact, message } = req.body;
 
-    if (!userId || !contact?._id) {
-      return res.status(400).json({ error: "Invalid user or contact" });
+    if (!userId || !contact?._id || !message) {
+      return res
+        .status(400)
+        .json({ error: "User ID, contact ID, and message are required" });
     }
 
     const user = await User.findById(userId);
-    let contactUser = await User.findById(contact._id);
-
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
+    let contactUser = await User.findById(contact._id);
     if (!contactUser) {
       contactUser = await User.create({ ...contact });
     }
 
-    let chat = await Chat.findOne({
+    let chat: any = await Chat.findOne({
       participants: { $all: [userId, contactUser._id], $size: 2 },
+      chatType: "Direct",
     });
 
     if (!chat) {
       chat = await Chat.create({
         participants: [userId, contactUser._id],
         lastMessage: null,
+        chatType: "Direct",
       });
     }
+
+    const newMessage: any = await Message.create({
+      chatId: chat._id,
+      senderId: userId,
+      body: message.body || "",
+      type: message.type || "text",
+      attachments: message.attachments || [],
+    });
+
+    chat.lastMessage = newMessage._id;
+    await chat.save();
 
     const populatedChat: any = await Chat.findById(chat._id).populate<{
       participants: any;
     }>("participants", "displayName socketId active status");
 
-    return res.status(200).json({ chat });
+    const populatedMessage: any = await Message.findById(newMessage._id)
+      .populate<{ senderId: any }>("senderId", "displayName active status")
+      .lean();
+
+    const otherParticipants = populatedChat.participants.filter(
+      (p: any) =>
+        p._id.toString() !== userId.toString() &&
+        p.socketId &&
+        p.socketId !== ""
+    );
+
+    otherParticipants.forEach((participant: any) => {
+      if (participant.socketId) {
+        io.to(participant.socketId).emit("messageSent", {
+          message: populatedMessage,
+          chatId: chat._id,
+        });
+      }
+    });
+
+    return res.status(200).json({ chat: populatedChat });
   } catch (error) {
     console.error("Error creating chat:", error);
     res.status(500).json({ error: "Server error" });
@@ -160,13 +196,16 @@ router.post("/chats", async (req: any, res: any) => {
 
 router.post("/chats/multiple", async (req: any, res: any) => {
   try {
-    const { userId, recipients, message } = req.body;
+    const { userId, recipients, message, name } = req.body;
 
     if (!userId || !Array.isArray(recipients) || recipients.length === 0) {
       return res.status(400).json({ error: "Invalid user or recipients" });
     }
-
-    console.log(recipients);
+    if (!message || (!message.body && !message.attachments?.length)) {
+      return res
+        .status(400)
+        .json({ error: "Message body or attachments required" });
+    }
 
     const user = await User.findById(userId);
     if (!user) {
@@ -176,24 +215,23 @@ router.post("/chats/multiple", async (req: any, res: any) => {
     const recipientIds = await Promise.all(
       recipients.map(async (recipient: any) => {
         let contactUser = await User.findById(recipient._id);
-        console.log(recipient);
-        const newUser = {
-          _id: recipient._id,
-          displayName: `${recipient.displayName}`,
-          email: recipient.email,
-          about: "About",
-          role: recipient.role,
-          isPublic: true,
-          country: recipient?.billingAddress?.country || "India",
-          address: recipient?.billingAddress?.address || "90210 Broadway Blvd",
-          state: recipient?.billingAddress?.state || "California",
-          city: recipient?.billingAddress?.city || "San Francisco",
-          zipCode: recipient?.billingAddress?.postalCode || "94116",
-          photoURL: recipient.profile_image,
-          phoneNumber: recipient.phone,
-        };
-
         if (!contactUser) {
+          const newUser = {
+            _id: recipient._id,
+            displayName: `${recipient.displayName}`,
+            email: recipient.email,
+            about: "About",
+            role: recipient.role || "user",
+            isPublic: true,
+            country: recipient?.billingAddress?.country || "India",
+            address:
+              recipient?.billingAddress?.address || "90210 Broadway Blvd",
+            state: recipient?.billingAddress?.state || "California",
+            city: recipient?.billingAddress?.city || "San Francisco",
+            zipCode: recipient?.billingAddress?.postalCode || "94116",
+            photoURL: recipient.profile_image,
+            phoneNumber: recipient.phone,
+          };
           contactUser = await User.create(newUser);
         }
         return contactUser._id;
@@ -201,52 +239,60 @@ router.post("/chats/multiple", async (req: any, res: any) => {
     );
 
     const participants = [userId, ...recipientIds];
+    const isDirect = recipients.length === 1;
+    const chatType = isDirect ? "Direct" : "Group";
 
-    let chat = await Chat.findOne({
+    let chat: any = await Chat.findOne({
       participants: { $all: participants, $size: participants.length },
+      chatType,
     });
 
     if (!chat) {
       chat = await Chat.create({
         participants,
         lastMessage: null,
-        isGroup: true,
-        chatType: recipients.length === 1 ? "Direct" : "Group",
+        isGroup: !isDirect,
+        chatType,
+        name: name && name.trim() !== "" ? name.trim() : undefined,
       });
     }
 
     const newMessage = await Message.create({
       chatId: chat._id,
       senderId: userId,
-      body: message.body,
-      type: message.type,
-      attachments: message.attachments,
+      body: message.body || "",
+      type: message.type || "text",
+      attachments: message.attachments || [],
     });
 
-    console.log(`newMessage : ${newMessage}`);
-    await Chat.findByIdAndUpdate(chat._id, { lastMessage: newMessage._id });
+    chat.lastMessage = newMessage._id;
+    await chat.save();
 
     const populatedChat: any = await Chat.findById(chat._id).populate<{
       participants: any;
     }>("participants", "displayName socketId active status");
 
-    // Notify all participants about the new chat
-    const onlineParticipants = populatedChat.participants.filter(
-      (p: any) => p.socketId && p.socketId !== ""
-    );
-    console.log(onlineParticipants);
+    const populatedMessage: any = await Message.findById(newMessage._id)
+      .populate<{ senderId: any }>("senderId", "displayName active status")
+      .lean();
 
-    onlineParticipants.forEach((participant: any) => {
+    const otherParticipants = populatedChat.participants.filter(
+      (p: any) =>
+        p._id.toString() !== userId.toString() &&
+        p.socketId &&
+        p.socketId !== ""
+    );
+
+    otherParticipants.forEach((participant: any) => {
       if (participant.socketId) {
         io.to(participant.socketId).emit("messageSent", {
-          message: newMessage,
-          chatId: populatedChat._id,
+          message: populatedMessage,
+          chatId: chat._id,
         });
       }
     });
 
-    console.log(populatedChat);
-    return res.status(200).json({ chat });
+    return res.status(200).json({ chat: populatedChat });
   } catch (error) {
     console.error("Error creating group chat:", error);
     res.status(500).json({ error: "Server error" });
@@ -370,7 +416,6 @@ router.delete("/chats/:chatId/:userId?", async (req: any, res: any) => {
       ? chat.lastMessage.createdAt
       : new Date();
 
-    // Check if user already has a deletedFor entry
     const existingDelete = chat.deletedFor.find(
       (d: any) => d.userId.toString() === finalUserId.toString()
     );
@@ -393,7 +438,6 @@ router.delete("/chats/:chatId/:userId?", async (req: any, res: any) => {
   }
 });
 
-// Edit message
 router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
   try {
     const { chatId, messageId } = req.params;
@@ -417,11 +461,9 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
     message.isEdited = true;
     await message.save();
 
-    // Get the chat and its last message
     const chat = await Chat.findById(chatId).populate("lastMessage");
     const lastMessage = chat?.lastMessage;
 
-    // Emit socket event for real-time update with lastMessage
     io.emit("messageEdited", {
       chatId,
       messageId,
@@ -437,7 +479,6 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
   }
 });
 
-// Delete message
 router.delete("/messages/:messageId", deleteMessage);
 
 import jsPDF from "jspdf";
@@ -447,21 +488,19 @@ router.post("/export", async (req: any, res: any) => {
   try {
     const { conversationId, userId } = req.body;
 
-    // Validate input
     if (!conversationId || !userId) {
       return res
         .status(400)
         .json({ error: "Missing conversationId or userId" });
     }
 
-    console.log("Received conversationId:", conversationId); // Debug
+    console.log("Received conversationId:", conversationId);
 
-    // Fetch messages using chatId
     const messages = await Message.find({ chatId: conversationId })
       .sort({ createdAt: 1 })
       .populate("senderId", "displayName email");
 
-    console.log("Messages fetched:", messages); // Debug: Check if messages are retrieved
+    console.log("Messages fetched:", messages);
 
     if (!messages || messages.length === 0) {
       const doc = new jsPDF({
@@ -486,27 +525,24 @@ router.post("/export", async (req: any, res: any) => {
       return res.send(pdfBuffer);
     }
 
-    // Create PDF document
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
       format: "a4",
     });
-    const leftMargin = 10; // Left side for others' messages
-    const rightMargin = 200; // Right side for user's messages (A4 width is 210mm)
-    const maxWidth = 190; // Max width for text wrapping
+    const leftMargin = 10;
+    const rightMargin = 200;
+    const maxWidth = 190;
     const lineHeight = 7;
     let yPosition = 20;
     let pageNumber = 1;
 
-    // Add header
     doc.setFontSize(16);
     doc.text(`Chat Export - Conversation ${conversationId}`, 105, yPosition, {
       align: "center",
     });
     yPosition += 15;
 
-    // Process messages
     messages.forEach((message: any) => {
       const senderName = message.senderId
         ? `${message.senderId.displayName}`.trim()
@@ -530,7 +566,6 @@ router.post("/export", async (req: any, res: any) => {
       const splitText = doc.splitTextToSize(fullText, maxWidth);
       const textHeight = splitText.length * lineHeight;
 
-      // Check if we need a new page
       if (yPosition + textHeight > 260) {
         doc.setFontSize(10);
         doc.text(`Page ${pageNumber}`, 105, 287, { align: "center" });
@@ -539,29 +574,24 @@ router.post("/export", async (req: any, res: any) => {
         pageNumber++;
       }
 
-      // Determine if this is the user's message
       const isUserMessage =
         message.senderId &&
         message.senderId._id.toString() === userId.toString();
 
-      // Set x position based on sender
       const xPosition = isUserMessage ? rightMargin : leftMargin;
 
-      // If it's the user's message, align text to the right
       if (isUserMessage) {
         doc.text(splitText, xPosition, yPosition, { align: "right" });
       } else {
         doc.text(splitText, xPosition, yPosition);
       }
 
-      yPosition += textHeight + 5; // Add extra spacing between messages
+      yPosition += textHeight + 5;
     });
 
-    // Add final page number
     doc.setFontSize(10);
     doc.text(`Page ${pageNumber}`, 105, 287, { align: "center" });
 
-    // Set response headers
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
@@ -569,7 +599,7 @@ router.post("/export", async (req: any, res: any) => {
     );
 
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
-    console.log("PDF Buffer size:", pdfBuffer.length); // Debug
+    console.log("PDF Buffer size:", pdfBuffer.length);
     res.send(pdfBuffer);
   } catch (error: any) {
     console.error("Error exporting chat:", error);
@@ -591,7 +621,6 @@ router.post("/export", async (req: any, res: any) => {
   }
 });
 
-// Send message
 router.post("/messages", async (req: any, res: any) => {
   try {
     const { chatId, content } = req.body;
@@ -629,7 +658,6 @@ router.post("/messages", async (req: any, res: any) => {
       .populate("replyTo");
 
     if (populatedMessage) {
-      // Notify all participants about the new message
       chat.participants.forEach((participant: any) => {
         if (participant.socketId) {
           io.to(participant.socketId).emit("messageSent", {
@@ -644,6 +672,65 @@ router.post("/messages", async (req: any, res: any) => {
   } catch (error) {
     console.error("Send message error:", error);
     res.status(500).json({ error: "Failed to send message" });
+  }
+});
+
+router.post("/chats/:chatId/exit", async (req: any, res: any) => {
+  try {
+    const { chatId } = req.params;
+    const { userId } = req.body;
+
+    console.log(chatId, userId);
+
+    if (!userId) {
+      return res.status(400).json({ error: "User ID is required" });
+    }
+
+    const chat: any = await Chat.findById(chatId);
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    if (chat.chatType !== "Group") {
+      return res.status(400).json({ error: "Can only exit from group chats" });
+    }
+
+    // Remove user from participants
+    chat.participants = chat.participants.filter(
+      (p: any) => p.toString() !== userId.toString()
+    );
+    console.log(chat.participants);
+
+    // Add exit message
+    const exitMessage = await Message.create({
+      chatId: chat._id,
+      senderId: userId,
+      body: `has left the group`,
+      type: "system",
+    });
+
+    chat.lastMessage = exitMessage._id;
+    await chat.save();
+
+    // Notify other participants
+    const populatedChat: any = await Chat.findById(chat._id).populate(
+      "participants",
+      "socketId"
+    );
+
+    populatedChat.participants.forEach((participant: any) => {
+      if (participant.socketId) {
+        io.to(participant.socketId).emit("messageSent", {
+          message: exitMessage,
+          chatId: chat._id,
+        });
+      }
+    });
+
+    return res.status(200).json({ message: "Successfully exited the group" });
+  } catch (error) {
+    console.error("Error exiting group:", error);
+    res.status(500).json({ error: "Failed to exit group" });
   }
 });
 
