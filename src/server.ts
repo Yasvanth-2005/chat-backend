@@ -13,6 +13,7 @@ const io = new Server(httpServer, {
     origin: "*",
     methods: ["GET", "POST"],
   },
+  transports: ["polling", "websocket"],
 });
 
 const connectDb = async () => {
