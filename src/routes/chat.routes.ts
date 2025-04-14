@@ -547,19 +547,17 @@ router.post("/export", async (req: any, res: any) => {
       const senderName = message.senderId
         ? `${message.senderId.displayName}`.trim()
         : "Unknown";
-      const messageType =
-        message.attachments?.length > 0 ? "Attachment" : "Text";
-      const messageContent = message.body || "[Attachment]";
       const timestamp = message.createdAt
         ? new Date(message.createdAt).toLocaleString()
         : "Unknown Time";
+      const messageContent =
+        message.attachments?.length > 0
+          ? message.attachments[0].name || "[Attachment]"
+          : message.body || "";
 
       const fullText = [
-        `Time: ${timestamp}`,
-        `Sender: ${senderName}`,
-        `Type: ${messageType}`,
+        `${senderName}, ${timestamp}`,
         `Message: ${messageContent}`,
-        "-------------------",
       ].join("\n");
 
       doc.setFontSize(10);
