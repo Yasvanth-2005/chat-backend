@@ -6,6 +6,7 @@ import User from "../models/User";
 import { io } from "../socket/socketManager";
 import { deleteMessage } from "../controllers/message.controller";
 import { Types } from "mongoose";
+import mongoose from "mongoose";
 
 const router = Router();
 
@@ -28,21 +29,59 @@ router.get("/users/:userId/chats", async (req, res) => {
         path: "lastMessage",
       });
 
-    const filteredChats = chats.filter((chat: any) => {
+    const filteredChats = await Promise.all(
+      chats.map(async (chat: any) => {
+        const deletedEntry = chat.deletedFor.find(
+          (d: any) => d.userId.toString() === userId.toString()
+        );
+
+        if (
+          deletedEntry &&
+          chat.lastMessage?.createdAt &&
+          new Date(chat.lastMessage.createdAt).getTime() <=
+            new Date(deletedEntry.lastMessageTime).getTime()
+        ) {
+          const lastVisibleMessage = await Message.findOne({
+            chatId: chat._id,
+            createdAt: { $gt: deletedEntry.lastMessageTime },
+            $or: [
+              { deletedFor: { $exists: false } },
+              { deletedFor: { $size: 0 } },
+              {
+                deletedFor: {
+                  $not: {
+                    $elemMatch: { userId: new mongoose.Types.ObjectId(userId) },
+                  },
+                },
+              },
+            ],
+          })
+            .sort({ createdAt: -1 })
+            .populate("senderId", "displayName")
+            .lean();
+
+          if (lastVisibleMessage) {
+            chat.lastMessage = lastVisibleMessage;
+          } else {
+            chat.lastMessage = null;
+          }
+        }
+
+        return chat;
+      })
+    );
+
+    const visibleChats = filteredChats.filter((chat: any) => {
       const deletedEntry = chat.deletedFor.find(
         (d: any) => d.userId.toString() === userId.toString()
       );
 
       if (!deletedEntry) return true;
 
-      return (
-        !chat.lastMessage?.createdAt ||
-        new Date(chat.lastMessage.createdAt).getTime() >
-          new Date(deletedEntry.lastMessageTime).getTime()
-      );
+      return chat.lastMessage !== null;
     });
 
-    filteredChats.sort((a: any, b: any) => {
+    visibleChats.sort((a: any, b: any) => {
       const dateA = a.lastMessage?.createdAt
         ? new Date(a.lastMessage.createdAt).getTime()
         : 0;
@@ -52,7 +91,7 @@ router.get("/users/:userId/chats", async (req, res) => {
       return dateB - dateA;
     });
 
-    res.json({ conversations: filteredChats });
+    res.json({ conversations: visibleChats });
   } catch (error) {
     console.error("Error fetching chats:", error);
     res.status(500).json({ error: "Server error" });
@@ -63,7 +102,8 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
   try {
     const { chatId, userId } = req.params;
     const page = parseInt(req.query.page as string) || 1;
-    const limit = 20 * page;
+    const limit = 20;
+    const skip = (page - 1) * limit;
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: "Invalid userId" });
@@ -94,6 +134,15 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
       };
     }
 
+    query = {
+      ...query,
+      $or: [
+        { deletedFor: { $exists: false } },
+        { deletedFor: { $size: 0 } },
+        { deletedFor: { $not: { $elemMatch: { userId: userObjectId } } } },
+      ],
+    };
+
     const totalMessages = await Message.countDocuments(query);
 
     const messages = await Message.find(query)
@@ -101,13 +150,14 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
       .populate("replyTo", "body attachments")
       .populate("chatId", "chatType")
       .sort({ createdAt: -1 })
+      .skip(skip)
       .limit(limit)
       .lean();
 
     res.json({
       messages: messages.reverse(),
       participants: chat.participants || [],
-      hasMore: totalMessages > limit,
+      hasMore: totalMessages > skip + limit,
       total: totalMessages,
       currentPage: page,
       name: chat.name || "",
@@ -482,7 +532,6 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
 router.delete("/messages/:messageId", deleteMessage);
 
 import jsPDF from "jspdf";
-import mongoose from "mongoose";
 
 router.post("/export", async (req: any, res: any) => {
   try {

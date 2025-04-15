@@ -3,7 +3,8 @@ export interface ServerToClientEvents {
   messageDeleted: (data: {
     messageId: string;
     chatId: string;
-    lastMessage: any;
+    lastMessage?: any;
+    mode: any;
   }) => void;
   chatUpdated: (chatId: string, lastMessage: any) => void;
   chatStarted: (chat: any) => void;

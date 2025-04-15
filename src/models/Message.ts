@@ -13,6 +13,11 @@ interface IReaction {
   emoji: string;
 }
 
+interface IDeletedFor {
+  userId: mongoose.Types.ObjectId;
+  deletedAt: Date;
+}
+
 interface IMessage {
   chatId: mongoose.Types.ObjectId;
   senderId: mongoose.Types.ObjectId;
@@ -23,6 +28,7 @@ interface IMessage {
   reactions: IReaction[];
   replyTo: mongoose.Types.ObjectId;
   createdAt: Date;
+  deletedFor: IDeletedFor[];
 }
 
 const attachmentSchema = new Schema<IAttachment>({
@@ -36,6 +42,11 @@ const attachmentSchema = new Schema<IAttachment>({
 const reactionSchema = new Schema<IReaction>({
   userId: { type: Schema.Types.ObjectId, ref: "chatusers", required: true },
   emoji: { type: String, required: true },
+});
+
+const deletedForSchema = new Schema<IDeletedFor>({
+  userId: { type: Schema.Types.ObjectId, ref: "chatusers", required: true },
+  deletedAt: { type: Date, default: Date.now },
 });
 
 const messageSchema = new Schema<IMessage>({
@@ -52,6 +63,7 @@ const messageSchema = new Schema<IMessage>({
   isEdited: { type: Boolean, default: false },
   reactions: { type: [reactionSchema], default: [] },
   replyTo: { type: Schema.Types.ObjectId, ref: "Message" },
+  deletedFor: { type: [deletedForSchema], default: [] },
 });
 
 export default mongoose.model<IMessage>("Message", messageSchema);
