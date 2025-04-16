@@ -35,15 +35,9 @@ router.get("/users/:userId/chats", async (req, res) => {
           (d: any) => d.userId.toString() === userId.toString()
         );
 
-        if (
-          deletedEntry &&
-          chat.lastMessage?.createdAt &&
-          new Date(chat.lastMessage.createdAt).getTime() <=
-            new Date(deletedEntry.lastMessageTime).getTime()
-        ) {
+        if (chat.lastMessage?.createdAt) {
           const lastVisibleMessage = await Message.findOne({
             chatId: chat._id,
-            createdAt: { $gt: deletedEntry.lastMessageTime },
             $or: [
               { deletedFor: { $exists: false } },
               { deletedFor: { $size: 0 } },

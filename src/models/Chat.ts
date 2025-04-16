@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IChat extends Document {
   name?: string;
-  participants: string[];
+  participants: any[];
   lastMessage?: string;
   createdAt: Date;
   deletedFor: IDeletedFor[];

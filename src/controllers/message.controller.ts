@@ -3,6 +3,7 @@ import Message from "../models/Message";
 import Chat from "../models/Chat";
 import { io } from "../socket/socketManager";
 import mongoose from "mongoose";
+import User from "../models/User";
 
 export const deleteMessage: RequestHandler = async (req: any, res: any) => {
   try {
@@ -24,24 +25,41 @@ export const deleteMessage: RequestHandler = async (req: any, res: any) => {
     if (mode === "forEveryone") {
       await Message.findByIdAndDelete(messageId);
 
-      const lastMessage = await Message.findOne({
-        chatId,
-        _id: { $ne: messageId },
-      })
-        .sort({ createdAt: -1 })
-        .select("body createdAt")
-        .lean();
+      const chat: any = await Chat.findById(chatId).populate("participants");
 
-      if (lastMessage) {
-        await Chat.findByIdAndUpdate(chatId, { lastMessage: lastMessage._id });
+      for (const participant of chat.participants) {
+        const participantId = participant._id.toString();
+
+        const lastVisibleMessage = await Message.findOne({
+          chatId,
+          _id: { $ne: messageId },
+          $or: [
+            { deletedFor: { $exists: false } },
+            { deletedFor: { $size: 0 } },
+            {
+              deletedFor: {
+                $not: {
+                  $elemMatch: {
+                    userId: new mongoose.Types.ObjectId(participantId),
+                  },
+                },
+              },
+            },
+          ],
+        })
+          .sort({ createdAt: -1 })
+          .select("body createdAt")
+          .lean();
+
+        const participantUser: any = await User.findById(participantId);
+
+        io.to(participantUser.socketId).emit("messageDeleted", {
+          chatId,
+          messageId,
+          lastMessage: lastVisibleMessage,
+          mode: "forEveryone",
+        });
       }
-
-      io.emit("messageDeleted", {
-        chatId,
-        messageId,
-        lastMessage,
-        mode: "forEveryone",
-      });
     } else {
       if (!message.deletedFor) {
         message.deletedFor = [];
@@ -62,9 +80,41 @@ export const deleteMessage: RequestHandler = async (req: any, res: any) => {
 
       await message.save();
 
-      io.to(userId).emit("messageDeleted", {
+      // Find the last visible message for this user
+      const lastVisibleMessage = await Message.findOne({
+        chatId,
+        $or: [
+          { deletedFor: { $exists: false } },
+          { deletedFor: { $size: 0 } },
+          {
+            deletedFor: {
+              $not: {
+                $elemMatch: { userId: new mongoose.Types.ObjectId(userId) },
+              },
+            },
+          },
+        ],
+      })
+        .sort({ createdAt: -1 })
+        .select("body createdAt")
+        .lean();
+
+      // Update chat's lastMessage if this is the sender
+      if (message.senderId.toString() === userId && lastVisibleMessage) {
+        await Chat.findByIdAndUpdate(chatId, {
+          lastMessage: lastVisibleMessage._id,
+        });
+      }
+
+      const user: any = await User.findById(userId);
+      if (!user) {
+        return res.status(200).json({ message: "No User Found" });
+      }
+
+      io.to(user.socketId).emit("messageDeleted", {
         chatId,
         messageId,
+        lastMessage: lastVisibleMessage,
         mode: "forMe",
       });
     }
