@@ -24,7 +24,10 @@ router.get("/users/:userId/chats", async (req, res) => {
     const userId = req.params.userId;
 
     const chats = await Chat.find({ participants: userId })
-      .populate("participants")
+      .populate(
+        "participants",
+        "displayName status active email phoneNumber photoURL"
+      )
       .populate({
         path: "lastMessage",
       });
@@ -104,7 +107,10 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
     }
 
     const chat: any = await Chat.findById(chatId)
-      .populate("participants", "displayName status active email phoneNumber")
+      .populate(
+        "participants",
+        "displayName status active email phoneNumber photoURL"
+      )
       .lean();
 
     if (!chat) {
