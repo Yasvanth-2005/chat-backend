@@ -33,8 +33,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
   io = socketIo;
 
   io.on("connection", async (socket: Socket<SocketEvents, ServerEvents>) => {
-    console.log("User connected:", socket.id);
-
     socket.on("join", async (userData: any) => {
       try {
         let user: any = await ChatUser.findOne({
@@ -49,7 +47,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
           user.active = true;
           await user.save();
 
-          console.log("user emmited connected", user._id);
           io.emit("participantStatusUpdate", {
             participantId: user._id,
             status: user.status,
@@ -97,7 +94,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
             participants: any;
           }>("participants", "displayName socketId active status");
 
-          console.log(populatedChat);
           return populatedChat;
         } catch (error) {
           console.error("Start chat error:", error);
@@ -165,7 +161,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
 
             if (populatedMessage) {
               chat.participants.forEach((participant: any) => {
-                console.log(`Sending message to: ${participant.socketId}`);
                 // Send the new message
                 io.to(participant.socketId).emit("messageSent", {
                   message: populatedMessage,
@@ -248,7 +243,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
           }
 
           await message.save();
-          console.log(message);
 
           // Get the chat to notify other participants
           const chat = await Chat.findById(chatId).populate<{
@@ -257,7 +251,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
 
           if (chat) {
             chat.participants.forEach((participant: PopulatedUser) => {
-              console.log(emoji);
               io.to(participant.socketId).emit("messageReaction", {
                 messageId,
                 chatId,
@@ -285,7 +278,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
             active: false,
             socketId: "",
           });
-          console.log("user disconnected", user._id);
           io.emit("participantStatusUpdate", {
             participantId: user._id,
             status: user.status,
@@ -308,8 +300,6 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
           );
 
           if (user) {
-            console.log("user status updated", user._id, status);
-            console.log(user);
             io.emit("participantStatusUpdate", {
               participantId: user._id,
               status: status,

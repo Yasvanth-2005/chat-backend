@@ -366,7 +366,7 @@ router.post("/chats/teams", async (req: any, res: any) => {
     const recipientIds = await Promise.all(
       recipients.map(async (recipient: any) => {
         let contactUser = await User.findById(recipient._id);
-        console.log(recipient);
+
         if (!contactUser) {
           const newUser = {
             _id: recipient._id,
@@ -415,8 +415,6 @@ router.post("/chats/teams", async (req: any, res: any) => {
       type: message.type,
       attachments: message.attachments,
     });
-
-    console.log(`newMessage : ${newMessage}`);
     await Chat.findByIdAndUpdate(chat._id, { lastMessage: newMessage._id });
 
     const populatedChat: any = await Chat.findById(chat._id).populate<{
@@ -493,8 +491,6 @@ router.put("/chats/:chatId/messages/:messageId", async (req: any, res: any) => {
     const { chatId, messageId } = req.params;
     const { content, attachments } = req.body;
 
-    console.log(chatId, messageId);
-
     const message = await Message.findById(messageId);
     if (!message) {
       return res.status(404).json({ error: "Message not found" });
@@ -543,13 +539,9 @@ router.post("/export", async (req: any, res: any) => {
         .json({ error: "Missing conversationId or userId" });
     }
 
-    console.log("Received conversationId:", conversationId);
-
     const messages = await Message.find({ chatId: conversationId })
       .sort({ createdAt: 1 })
       .populate("senderId", "displayName email");
-
-    console.log("Messages fetched:", messages);
 
     if (!messages || messages.length === 0) {
       const doc = new jsPDF({
@@ -646,7 +638,7 @@ router.post("/export", async (req: any, res: any) => {
     );
 
     const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
-    console.log("PDF Buffer size:", pdfBuffer.length);
+
     res.send(pdfBuffer);
   } catch (error: any) {
     console.error("Error exporting chat:", error);
@@ -727,8 +719,6 @@ router.post("/chats/:chatId/exit", async (req: any, res: any) => {
     const { chatId } = req.params;
     const { userId } = req.body;
 
-    console.log(chatId, userId);
-
     if (!userId) {
       return res.status(400).json({ error: "User ID is required" });
     }
@@ -746,7 +736,6 @@ router.post("/chats/:chatId/exit", async (req: any, res: any) => {
     chat.participants = chat.participants.filter(
       (p: any) => p.toString() !== userId.toString()
     );
-    console.log(chat.participants);
 
     // Add exit message
     const exitMessage = await Message.create({
