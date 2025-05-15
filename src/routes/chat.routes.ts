@@ -515,12 +515,13 @@ router.post('/export', async (req: any, res: any) => {
       .sort({ createdAt: 1 })
       .populate('senderId', 'displayName email');
 
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
     if (!messages || messages.length === 0) {
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      });
       doc.setFontSize(16);
       doc.text(`Chat Export - Conversation ${conversationId}`, 105, 20, {
         align: 'center',
@@ -535,11 +536,6 @@ router.post('/export', async (req: any, res: any) => {
       return res.send(pdfBuffer);
     }
 
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
     const leftMargin = 10;
     const rightMargin = 200;
     const maxWidth = 190;
@@ -556,8 +552,17 @@ router.post('/export', async (req: any, res: any) => {
     messages.forEach((message: any) => {
       const senderName = message.senderId ? `${message.senderId.displayName}`.trim() : 'Unknown';
       const timestamp = message.createdAt
-        ? new Date(message.createdAt).toLocaleString()
+        ? new Date(message.createdAt).toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          })
         : 'Unknown Time';
+
       const messageContent =
         message.attachments?.length > 0
           ? message.attachments[0].name || '[Attachment]'
@@ -579,7 +584,6 @@ router.post('/export', async (req: any, res: any) => {
 
       const isUserMessage =
         message.senderId && message.senderId._id.toString() === userId.toString();
-
       const xPosition = isUserMessage ? rightMargin : leftMargin;
 
       if (isUserMessage) {
@@ -596,17 +600,17 @@ router.post('/export', async (req: any, res: any) => {
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename=chat-${conversationId}.pdf`);
-
     const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
-
     res.send(pdfBuffer);
   } catch (error: any) {
     console.error('Error exporting chat:', error);
+
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
     });
+
     doc.setFontSize(16);
     doc.text('Chat Export Error', 105, 20, { align: 'center' });
     doc.setFontSize(12);
