@@ -22,13 +22,14 @@ interface IMessage {
   chatId: mongoose.Types.ObjectId;
   senderId: mongoose.Types.ObjectId;
   body: string;
-  type: "text" | "image" | "file";
+  type: "text" | "image" | "file" | "recording";
   attachments: IAttachment[];
   isEdited: boolean;
   reactions: IReaction[];
   replyTo: mongoose.Types.ObjectId;
   createdAt: Date;
   deletedFor: IDeletedFor[];
+  isRecording?: boolean;
 }
 
 const attachmentSchema = new Schema<IAttachment>({
@@ -55,7 +56,7 @@ const messageSchema = new Schema<IMessage>({
   chatId: { type: Schema.Types.ObjectId, ref: "chats", required: true },
   type: {
     type: String,
-    enum: ["text", "image", "file", "system"],
+    enum: ["text", "image", "file", "recording", "system"],
     default: "text",
   },
   createdAt: { type: Date, default: Date.now },
@@ -64,6 +65,7 @@ const messageSchema = new Schema<IMessage>({
   reactions: { type: [reactionSchema], default: [] },
   replyTo: { type: Schema.Types.ObjectId, ref: "Message" },
   deletedFor: { type: [deletedForSchema], default: [] },
+  isRecording: { type: Boolean, default: false }
 });
 
 export default mongoose.model<IMessage>("Message", messageSchema);

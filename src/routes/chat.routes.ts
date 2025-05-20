@@ -147,6 +147,7 @@ router.get("/chats/:chatId/messages/:userId", async (req: any, res: any) => {
 
     const messages = await Message.find(query)
       .populate("senderId", "displayName status active email phoneNumber")
+      .populate("reactions.userId", "displayName photoURL")
       .populate("replyTo", "body attachments")
       .populate("chatId", "chatType")
       .sort({ createdAt: -1 })
@@ -219,6 +220,7 @@ router.post("/chats", async (req: any, res: any) => {
 
     const populatedMessage: any = await Message.findById(newMessage._id)
       .populate<{ senderId: any }>("senderId", "displayName active status")
+      .populate("reactions.userId", "displayName photoURL")
       .lean();
 
     const otherParticipants = populatedChat.participants.filter(
@@ -324,7 +326,8 @@ router.post("/chats/multiple", async (req: any, res: any) => {
 
     const populatedMessage: any = await Message.findById(newMessage._id)
       .populate<{ senderId: any }>("senderId", "displayName active status")
-      .lean();
+      .populate("reactions.userId", "displayName photoURL")
+      .populate("replyTo");
 
     const otherParticipants = populatedChat.participants.filter(
       (p: any) =>
@@ -687,13 +690,15 @@ router.post("/messages", async (req: any, res: any) => {
       replyTo: content.replyTo
         ? new Types.ObjectId(content.replyTo)
         : undefined,
+      isRecording: content.type === "recording"
     });
 
     chat.lastMessage = message._id;
     await chat.save();
 
     const populatedMessage: any = await Message.findById(message._id)
-      .populate<{ senderId: any }>("senderId", "displayName active status")
+      .populate("senderId", "displayName active status")
+      .populate("reactions.userId", "displayName photoURL")
       .populate("replyTo");
 
     if (populatedMessage) {

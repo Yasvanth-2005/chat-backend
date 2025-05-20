@@ -217,7 +217,7 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
         emoji: string;
       }) => {
         try {
-          const user = await ChatUser.findOne({ socketId: socket.id }).lean();
+          const user = await ChatUser.findOne({ socketId: socket.id }).select("_id displayName photoURL").lean();
           if (!user || !user._id) {
             console.error("User not found");
             return;
@@ -249,6 +249,15 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
             participants: PopulatedUser[];
           }>("participants", "socketId");
 
+          // Get populated reaction details
+          const populatedMessage = await Message.findById(messageId)
+            .populate("reactions.userId", "displayName photoURL")
+            .lean();
+
+          const currentReaction = populatedMessage?.reactions.find(
+            r => r.userId._id.toString() === user._id.toString()
+          );
+
           if (chat) {
             chat.participants.forEach((participant: PopulatedUser) => {
               io.to(participant.socketId).emit("messageReaction", {
@@ -258,6 +267,11 @@ export const setupSocket = (socketIo: Server<SocketEvents, ServerEvents>) => {
                   ? {
                       userId: user._id.toString(),
                       emoji,
+                      user: {
+                        _id: user._id,
+                        displayName: user.displayName,
+                        photoURL: user.photoURL
+                      }
                     }
                   : null,
                 userId: user._id.toString(),
